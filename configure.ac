@@ -1,0 +1,28 @@
+AC_COPYRIGHT([Copyright 2009 the librandomcrash team])
+
+AC_INIT(librandomcrash, 0.0.0)
+AC_PREREQ(2.50)
+AC_CANONICAL_SYSTEM
+
+AM_INIT_AUTOMAKE
+
+LT_MAJOR="0"
+LT_MINOR="0"
+LT_MICRO="0"
+AC_SUBST(LT_MAJOR)
+AC_SUBST(LT_MINOR)
+AC_SUBST(LT_MICRO)
+LT_VERSION="$LT_MAJOR:$LT_MINOR:$LT_MICRO"
+AC_SUBST(LT_VERSION)
+
+AC_PROG_CC
+
+m4_undefine([AC_PROG_F77])
+m4_defun([AC_PROG_F77],[])
+
+AC_LIBTOOL_DLOPEN
+AC_PROG_LIBTOOL
+
+AC_CONFIG_FILES([Makefile] [src/librandomcrash.pc] [src/Makefile])
+AC_OUTPUT
+
