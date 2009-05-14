@@ -1,5 +1,10 @@
 lib_LTLIBRARIES = librandomcrash.la
 
+CLEANFILES =
+
+EXTRA_DIST = librandomcrash.sym \
+	librandomcrash.pc.in
+
 AM_LDFLAGS = -no-undefined
 
 librandomcrash_la_SOURCES = main.c
@@ -9,7 +14,7 @@ librandomcrash_la_LDFLAGS = $(AM_LDFLAGS) \
 
 if HAVE_DARWIN
 BUILT_SOURCES = librandomcrash.osx.sym
-CLEANFILES = $(BUILT_SOURCES)
+CLEANFILES += $(BUILT_SOURCES)
 
 librandomcrash.osx.sym:
 	grep @SYMBOL_PREFIX@ $(srcdir)/librandomcrash.sym | cut -d";" -f 1 >> librandomcrash.osx.sym
@@ -18,3 +23,17 @@ librandomcrash_la_LDFLAGS += -Wl,-exported_symbols_list,$(srcdir)/librandomcrash
 else
 librandomcrash_la_LDFLAGS += -Wl,--version-script,$(srcdir)/librandomcrash.sym
 endif
+
+###############################################################################
+# pkg-config integration
+###############################################################################
+
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = librandomcrash.pc
+CLEANFILES += $(pkgconfig_DATA)
+
+.pc.in.pc: $(top_builddir)/config.status
+	cd "$(top_builddir)" && \
+	$(SHELL) ./config.status --file="src/$@"
+
+
