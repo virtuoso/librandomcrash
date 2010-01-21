@@ -11,7 +11,7 @@ int brk
 void * sbrk
 	intptr_t increment
 
-void close
+int close
 	int fd
 
 ssize_t read

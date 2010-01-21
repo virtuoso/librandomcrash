@@ -3,6 +3,7 @@ BEGIN {
     fn_nargs = 0
 
     print "#include \"override.h\""
+    print "#include \"symbols.h\""
 }
 
 END {
@@ -12,6 +13,7 @@ END {
 
 /^--/ && $2 == "include" {
 	print "#include " $3
+	print "#include " $3 >"symbols.h"
 	next
 }
 
@@ -41,7 +43,10 @@ function get_type_name(str)
     this_param = sprintf("%s %s", type_name, $NF)
     fn_paramlist = fn_paramlist ? fn_paramlist ", " this_param : this_param
     fn_paramlist_call = fn_paramlist_call ?
-	fn_paramlist_call ", /* args. */" $NF : "/* args. */" $NF
+	fn_paramlist_call ", " $NF : $NF
+
+    args_struct = args_struct sprintf("\t%s\t%s;\n", type_name, $NF)
+
     next
 }
 
@@ -57,10 +62,28 @@ function flush_function()
 
     print fn_struct
 
+    args_struct = args_struct "\tvoid *priv;\n};\n"
+    print args_struct >"symbols.h"
+
     printf("typedef %s (*__lrc_%s_fn)(%s);\n", fn_typename, fn_name, fn_paramlist)
-    fn_body = sprintf("\t__lrc_call_entry(&__lrc_call_%s);\n" \
-		      "\treturn ((__lrc_%s_fn)__lrc_call_%s.orig_func)(%s);",
-		      fn_name, fn_name, fn_name, fn_paramlist_call)
+    if (fn_typename != "void")
+	fn_body = sprintf( \
+	    "\tstruct __lrc_callctx_%s args =\n\t\t{ %s, NULL };\n" \
+	    "\t%s __ret;\n\n" \
+	    "\tif (!__lrc_call_entry(&__lrc_call_%s, &args))\n" \
+	    "\t\t__ret = ((__lrc_%s_fn)__lrc_call_%s.orig_func)(%s);\n" \
+	    "\t__lrc_call_exit(&__lrc_call_%s, &args, &__ret);\n" \
+	    "\treturn __ret;", fn_name, fn_paramlist_call, \
+	    fn_typename, fn_name, fn_name, fn_name, \
+	    gensub("([^, ]+)", "args.\\1", "g", fn_paramlist_call), fn_name)
+    else
+	fn_body = sprintf( \
+	    "\tstruct __lrc_callctx_%s args =\n\t\t{ %s, NULL };\n" \
+	    "\tif (!__lrc_call_entry(&__lrc_call_%s, &args))\n" \
+	    "\t\t((__lrc_%s_fn)__lrc_call_%s.orig_func)(%s);\n" \
+	    "\t__lrc_call_exit(&__lrc_call_%s, &args, NULL);\n", \
+	    fn_name, fn_paramlist_call, fn_name, fn_name, fn_name, \
+	    gensub("([^, ]+)", "args.\\1", "g", fn_paramlist_call), fn_name)
 
     fn_paramlist = fn_paramlist ? fn_paramlist : "void"
     printf "%s %s(%s) {\n%s\n}\n\n", fn_tail, fn_def, fn_paramlist, fn_body
@@ -80,4 +103,6 @@ function flush_function()
 
     fn_struct = sprintf("static struct override __lrc_call_%s %s = {\n" \
 			"\t.name  = \"%s\",\n", fn_name, sec_attr, fn_name)
+
+    args_struct = sprintf("struct __lrc_callctx_%s {\n", fn_name)
 }

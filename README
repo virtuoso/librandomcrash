@@ -1,5 +1,9 @@
 Building librandomcrash:
 
  - Run configure then make.
- - Prey that worked out.
+ - Pray that worked out.
+
+Enjoying it:
+
+ - env LD_PRELOAD=src/.libs/librandomcrash.so.0.0.0 cat /etc/fstab
 
