@@ -7,7 +7,11 @@ EXTRA_DIST = librandomcrash.sym \
 
 AM_LDFLAGS = -no-undefined
 
-librandomcrash_la_SOURCES = main.c
+librandomcrash_la_SOURCES = main.c symbols.c
+librandomcrash_la_LIBADD = -ldl
+
+symbols.c: symbols.list
+	awk -f symbols.awk < $< > $@
 
 librandomcrash_la_LDFLAGS = $(AM_LDFLAGS) \
 			    -version-info @LT_VERSION@

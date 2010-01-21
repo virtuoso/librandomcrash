@@ -1,4 +1,5 @@
 RANDOMCRASH_0.0.0 {
     local:
-        *;
+        lrc*;
+	__lrc*;
 };
