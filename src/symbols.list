@@ -5,11 +5,19 @@
 int access
 	const char * pathname
 	int mode
+
 int brk
 	void * addr
 
 void * sbrk
 	intptr_t increment
+
+-- include <stdarg.h>
+
+int open
+	const char * file
+	int oflag
+	...
 
 int close
 	int fd
