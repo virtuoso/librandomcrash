@@ -16,41 +16,53 @@ void basic_nastiness(struct override *o)
 }
 
 extern struct override *lrc_overrides[];
+extern struct handler *acct_handlers[];
+extern struct handler *handlers[];
 
-/*static const struct override overrides[] = {
-	{
-		.name = "open",
-		.new_func = basic_nastiness,
-		.nargs = 3,
-	}, {
-		.name = "close",
-		.new_func = basic_nastiness,
-		.nargs = 1,
-	}
-	};*/
+#define MAXQUEUE 32
 
 int __lrc_call_entry(struct override *o, void *ctxp)
 {
+	struct handler *queue[MAXQUEUE];
+	int i, qlast = 0;
+
 	fprintf(stderr, "--- %s() entry ---\n", o->name);
+
+	/* first, run all the enabled accounting handlers */
+	for (i = 0; acct_handlers[i]; i++)
+		if (!strcmp(acct_handlers[i]->fn_name, o->name) &&
+		    acct_handlers[i]->enabled &&
+		    acct_handlers[i]->probe_func &&
+		    !acct_handlers[i]->probe_func(o, ctxp))
+			;
+
+	for (i = 0; handlers[i] && qlast < MAXQUEUE; i++)
+		if (!strcmp(handlers[i]->fn_name, o->name) &&
+		    handlers[i]->enabled &&
+		    handlers[i]->probe_func &&
+		    !handlers[i]->probe_func(o, ctxp))
+			queue[qlast++] = handlers[i];
+
+	if (!qlast) {
+		fprintf(stderr, "warning: no handlers for %s call\n", o->name);
+		return 0;
+	}
+
+	/* XXX: need to pick a random one */
+	queue[0]->entry_func(o, ctxp);
+
 	return 0;
 }
 
 void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 {
+	int i;
+	struct handler *handler = ((struct __lrc_callctx *)ctxp)->priv;
+
 	fprintf(stderr, "--- %s() exit, ret=%d ---\n", o->name, retp ? *(int *)retp : 0);
 
-	/* let's provide an example */
-	if (!strcmp(o->name, "read")) {
-		/* bwahaha */
-		struct __lrc_callctx_read *args = ctxp;
-		unsigned char *buf = args->buf;
-		int i, ret = *(int *)retp;
-
-		for (i = 0; i < ret; i++)
-			buf[i] = (random() & 1)
-				? toupper(buf[i])
-				: tolower(buf[i]);
-	}
+	if (handler && handler->exit_func)
+		handler->exit_func(o, ctxp, retp);
 }
 
 void __ctor lrc_init(void)
