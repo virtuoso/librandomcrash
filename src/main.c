@@ -5,14 +5,14 @@
 #include <dlfcn.h>
 #include <errno.h>
 
-#include "symbols.h" /* XXX: move away */
+#include "log.h"
 
 static const char my_name[] = "librandomcrash";
 static const char my_ver[] = "0.0.1";
 
 void basic_nastiness(struct override *o)
 {
-	fprintf(stderr, "--------------------\n");
+	log_print(LL_OINFO, "--------------------\n");
 }
 
 extern struct override *lrc_overrides[];
@@ -26,7 +26,7 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 	struct handler *queue[MAXQUEUE];
 	int i, qlast = 0;
 
-	fprintf(stderr, "--- %s() entry ---\n", o->name);
+	log_print(LL_PINFO, "%s() entry\n", o->name);
 
 	/* first, run all the enabled accounting handlers */
 	for (i = 0; acct_handlers[i]; i++)
@@ -44,7 +44,7 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 			queue[qlast++] = handlers[i];
 
 	if (!qlast) {
-		fprintf(stderr, "warning: no handlers for %s call\n", o->name);
+		log_print(LL_OWARN, "no handlers for %s call\n", o->name);
 		return 0;
 	}
 
@@ -59,7 +59,8 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 	int i;
 	struct handler *handler = ((struct __lrc_callctx *)ctxp)->priv;
 
-	fprintf(stderr, "--- %s() exit, ret=%d ---\n", o->name, retp ? *(int *)retp : 0);
+	log_print(LL_PINFO, "%s() exit, ret=%d\n", o->name,
+		  retp ? *(int *)retp : 0);
 
 	if (handler && handler->exit_func)
 		handler->exit_func(o, ctxp, retp);
@@ -69,9 +70,10 @@ void __ctor lrc_init(void)
 {
 	int i;
 
-	fprintf(stderr, "%s, %s initializing\n", my_name, my_ver);
+	log_init();
+	log_print(LL_OINFO, "%s, %s initializing\n", my_name, my_ver);
 	for (i = 0; lrc_overrides[i]; i++) {
-		fprintf(stderr, "=> loading %s wrapper\n",
+		log_print(LL_OINFO, "=> loading %s wrapper\n",
 			lrc_overrides[i]->name);
 		lrc_overrides[i]->orig_func = dlsym(RTLD_NEXT,
 						    lrc_overrides[i]->name);

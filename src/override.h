@@ -22,6 +22,7 @@ struct __lrc_callctx {
 
 #define __ctor __attribute__((constructor))
 #define __dtor __attribute__((destructor))
+#define __noret __attribute__((noreturn))
 
 /*
  * a set of callbacks to be run for a certain intercepted callback

@@ -3,6 +3,7 @@
 #include "override.h"
 #include "symbols.h"
 #include "handlers.h"
+#include "log.h"
 
 static int open_stat_probe(struct override *o, void *ctxp)
 {
@@ -19,7 +20,7 @@ static int open_stat_exit(struct override *o, void *ctxp, void *retp)
 	const char *file = args->file;
 	int i, ret = *(int *)retp;
 
-	fprintf(stderr, "[[[ opening \"%s\" ]]]\n", file);
+	log_print(LL_PINFO, "opening \"%s\"\n", file);
 
 	return 0;
 }
