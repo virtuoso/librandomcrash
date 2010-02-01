@@ -8,10 +8,14 @@ EXTRA_DIST = librandomcrash.sym \
 
 AM_LDFLAGS = -no-undefined
 
-librandomcrash_la_SOURCES = symbols.c main.c read.c handlers.c
+librandomcrash_la_SOURCES = symbols.c main.c read.c handlers.c \
+	stat/open.c
+
 librandomcrash_la_LIBADD = -ldl
 
-lrc_test_SOURCES = symbols.c main.c read.c handlers.c
+lrc_test_SOURCES = symbols.c main.c read.c handlers.c \
+	stat/open.c
+
 lrc_test_LDADD = -ldl
 lrc_test_CPPFLAGS = -D__YEAH_RIGHT__
 

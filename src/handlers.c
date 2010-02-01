@@ -2,6 +2,7 @@
 #include "handlers.h"
 
 struct handler *acct_handlers[] = {
+	&open_stat,
 	NULL,
 };
 
