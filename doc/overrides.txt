@@ -1,0 +1,49 @@
+This is a brief description of how LRC overrides library calls.
+
+First, there's a list of the calls to be intercepted, in the file called
+symbols.list. A call is described by its name, arguments and return type:
+
+---cut---
+ssize_t read
+	int fd
+	void * buf
+	size_t count
+---cut---
+
+pretty much self-evident. Make sure there's always at least a whitespace
+between type and name: for example, "void *buf" will not work, make it
+"void * buf" instead.
+A new call definition starts at the beginning of the line, its arguments
+follow immediately, each starting with a tab on a new line.
+In that file you should also specify necessary header files so that all
+the type names make sense: "-- include <sys/types.h>".
+
+Then, a script called symbols.awk will parse symbols.list and output two
+files: symols.h and symbols.c.
+symbols.h will define structures that contain arguments for each call
+plus a void pointer for LRC's purposes:
+
+---cut---
+struct __lrc_callctx_read {
+        void *priv;
+        int     fd;
+        void *  buf;
+        size_t  count;
+};
+---cut---
+
+symbols.c will have the actual calls, each doing the following:
+  * create an instance of a corresponding structure from symbols.h and
+    fill it with its arguments;
+  * call __lrc_call_entry() to notify LRC that a certain call is made
+    from the application;
+  * if the above returns zero, call the original library function;
+  * call __lrc_call_exit() to notify LRC that we are about to return
+    execution flow to the application;
+  * return.
+
+This allows LRC to:
+  * find a suitable handler for a particular call;
+  * decide if the original function should be called at all;
+  * modify the arguments that are passed to it if need be;
+  * modify the arguments and the return value.
