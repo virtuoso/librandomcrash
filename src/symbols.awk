@@ -105,7 +105,14 @@ function flush_function()
     if (fn_tail)
 	fn_tail = fn_tail " "
 
+    # the override function
     printf "%s%s(%s)\n{\n%s\n}\n\n", fn_tail, fn_def, fn_paramlist, fn_body
+
+    # the original function
+    printf "%s%s __lrc_orig_%s(%s)\n{\n%s\treturn ((__lrc_%s_fn)__lrc_call_%s.orig_func)(%s);\n}\n\n", \
+	fn_tail, fn_typename, fn_name, fn_paramlist, fn_addargs, fn_name, fn_name, fn_paramlist_call
+    printf "%s%s __lrc_orig_%s(%s);\n\n", \
+	fn_tail, fn_typename, fn_name, fn_paramlist >"symbols.h"
 
     fn_paramlist = ""
     fn_paramlist_call = ""
