@@ -28,13 +28,13 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 
 	log_print(LL_PINFO, "%s() entry\n", o->name);
 
-	/* first, run all the enabled accounting handlers */
+	/* first, run the first enabled accounting handler for this call */
 	for (i = 0; acct_handlers[i]; i++)
 		if (!strcmp(acct_handlers[i]->fn_name, o->name) &&
 		    acct_handlers[i]->enabled &&
 		    acct_handlers[i]->probe_func &&
 		    !acct_handlers[i]->probe_func(o, ctxp))
-			;
+			break;
 
 	for (i = 0; handlers[i] && qlast < MAXQUEUE; i++)
 		if (!strcmp(handlers[i]->fn_name, o->name) &&
