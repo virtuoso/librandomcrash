@@ -57,13 +57,17 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 {
 	int i;
-	struct handler *handler = ((struct __lrc_callctx *)ctxp)->priv;
+	struct lrcpriv_callctx *callctx =
+		&((struct __lrc_callctx *)ctxp)->callctx;
 
 	log_print(LL_PINFO, "%s() exit, ret=%d\n", o->name,
 		  retp ? *(int *)retp : 0);
 
-	if (handler && handler->exit_func)
-		handler->exit_func(o, ctxp, retp);
+	if (callctx->acct_handler && callctx->acct_handler->exit_func)
+		callctx->acct_handler->exit_func(o, ctxp, retp);
+
+	if (callctx->handler && callctx->handler->exit_func)
+		callctx->handler->exit_func(o, ctxp, retp);
 }
 
 void __ctor lrc_init(void)

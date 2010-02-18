@@ -12,11 +12,29 @@ struct override {
 };
 
 /*
+ * lrc-private call context
+ */
+struct lrcpriv_callctx {
+	struct handler	*acct_handler;
+	struct handler	*handler;
+};
+
+/*
  * common part of all callctx structures
  */
 struct __lrc_callctx {
-	void *priv;
+	struct lrcpriv_callctx callctx;
 };
+
+#define lrc_callctx_set_handler(__c, __h)				\
+	do {								\
+		(__c)->callctx.handler = (__h);				\
+	} while (0);
+
+#define lrc_callctx_set_acct_handler(__c, __h)				\
+	do {								\
+		(__c)->callctx.acct_handler = (__h);			\
+	} while (0);
 
 #define arrsz(__a) (sizeof(__a) / sizeof(__a[0]))
 

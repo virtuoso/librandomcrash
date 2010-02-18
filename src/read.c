@@ -12,7 +12,7 @@ static int read_randomcase_enter(struct override *o, void *ctxp)
 {
 	struct __lrc_callctx_read *args = ctxp;
 
-	args->priv = &read_randomcase;
+	lrc_callctx_set_handler(args, &read_randomcase);
 
 	return 0;
 }

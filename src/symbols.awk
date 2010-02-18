@@ -16,11 +16,11 @@ function mk_override_st_hdr(__fn_name)
 # template for arguments struct definition
 # ---
 # static struct override __lrc_callctx_XXX = {
-#	void *priv;
+#	struct lrcpriv_callctx callctx;
 # ---
 function mk_args_st_hdr(__fn_name)
 {
-    return sprintf("struct __lrc_callctx_%s {\n\tvoid *priv;\n", __fn_name)
+    return sprintf("struct __lrc_callctx_%s {\n\tstruct lrcpriv_callctx callctx;\n", __fn_name)
 }
 
 function get_type_name(str)
@@ -64,7 +64,7 @@ function mk_fn_body(__fn_name, __fn_typename, __fn_addargs, __fn_paramlist, \
 
     return sprintf(							\
 	"%s"								\
-	"\tstruct __lrc_callctx_%s args =\n\t\t{ NULL, %s };\n"		\
+	"\tstruct __lrc_callctx_%s args =\n\t\t{ {}, %s };\n"		\
 	"%s"								\
 	"\tif (!__lrc_call_entry(&__lrc_call_%s, &args))\n"		\
 	"\t\t%s((__lrc_%s_fn)__lrc_call_%s.orig_func)(%s);\n"		\

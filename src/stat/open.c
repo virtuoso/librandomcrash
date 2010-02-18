@@ -9,7 +9,7 @@ static int open_stat_probe(struct override *o, void *ctxp)
 {
 	struct __lrc_callctx_open *args = ctxp;
 
-	args->priv = &open_stat;
+	lrc_callctx_set_acct_handler(args, &open_stat);
 
 	return 0;
 }
