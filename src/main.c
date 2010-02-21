@@ -10,6 +10,8 @@
 static const char my_name[] = "librandomcrash";
 static const char my_ver[] = "0.0.1";
 
+static int lrc_up;
+
 void basic_nastiness(struct override *o)
 {
 	log_print(LL_OINFO, "--------------------\n");
@@ -25,6 +27,9 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 {
 	struct handler *queue[MAXQUEUE];
 	int i, qlast = 0;
+
+	if (!lrc_up)
+		lrc_init();
 
 	log_print(LL_PINFO, "%s() entry\n", o->name);
 
@@ -60,6 +65,9 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 	struct lrcpriv_callctx *callctx =
 		&((struct __lrc_callctx *)ctxp)->callctx;
 
+	if (!lrc_up)
+		panic("Stack corruption detected");
+
 	log_print(LL_PINFO, "%s() exit, ret=%d\n", o->name,
 		  retp ? *(int *)retp : 0);
 
@@ -74,14 +82,18 @@ void __ctor lrc_init(void)
 {
 	int i;
 
-	log_init();
-	log_print(LL_OINFO, "%s, %s initializing\n", my_name, my_ver);
-	for (i = 0; lrc_overrides[i]; i++) {
-		log_print(LL_OINFO, "=> loading %s wrapper\n",
-			lrc_overrides[i]->name);
+	if (lrc_up)
+		return;
+
+	/* we can't actually do anything before we do this */
+	for (i = 0; lrc_overrides[i]; i++)
 		lrc_overrides[i]->orig_func = dlsym(RTLD_NEXT,
 						    lrc_overrides[i]->name);
-	}
+
+	lrc_up++;
+
+	log_init();
+	log_print(LL_OINFO, "%s, %s initialized\n", my_name, my_ver);
 }
 
 void __dtor lrc_done(void)
