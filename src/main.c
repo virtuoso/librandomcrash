@@ -62,7 +62,6 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 
 void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 {
-	int i;
 	struct lrcpriv_callctx *callctx =
 		&((struct __lrc_callctx *)ctxp)->callctx;
 

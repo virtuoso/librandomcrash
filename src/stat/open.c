@@ -18,7 +18,6 @@ static int open_stat_exit(struct override *o, void *ctxp, void *retp)
 {
 	struct __lrc_callctx_open *args = ctxp;
 	const char *file = args->file;
-	int i, ret = *(int *)retp;
 
 	log_print(LL_PINFO, "opening \"%s\"\n", file);
 
