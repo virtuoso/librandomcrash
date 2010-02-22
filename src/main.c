@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <string.h>
 
 #include "log.h"
 

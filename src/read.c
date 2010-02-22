@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <ctype.h>
+#include <string.h>
 #include "override.h"
 #include "symbols.h"
 #include "handlers.h"
