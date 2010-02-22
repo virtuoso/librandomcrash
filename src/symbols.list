@@ -37,3 +37,6 @@ ssize_t write
 struct dirent * readdir
 @@ __nonnull ((1))
 	DIR * __dirp
+
+DIR * opendir
+	const char * name
