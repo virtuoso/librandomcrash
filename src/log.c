@@ -7,12 +7,12 @@
 
 struct log_output {
 	FILE	*file;
-	char	*path;
+	char	path[PATH_MAX];
 };
 
 #define MAX_OUTPUT 4
 
-static struct log_output *log_output[MAX_OUTPUT];
+static struct log_output log_output[MAX_OUTPUT];
 static int log_noutputs;
 
 char log_dir[] = "/tmp";
@@ -26,21 +26,17 @@ static int log_add_output(FILE *file, char *path)
 {
 	struct log_output *o;
 
+	if (!file)
+		return -1;
+
 	if (log_noutputs == MAX_OUTPUT)
 		return -1;
 
-	o = malloc(sizeof(*o));
-	if (!o)
-		return -1;
+	o = &log_output[log_noutputs];
+	strncpy(o->path, path, PATH_MAX);
 
-	o->path = strdup(path);
-	if (!o->path) {
-		free(o);
-		return -1;
-	}
-
-	o->file = file;
-	log_output[log_noutputs++] = o;
+	log_output[log_noutputs].file = file;
+	log_noutputs++;
 
 	return 0;
 }
@@ -64,13 +60,18 @@ void log_print(int level, const char *fmt, ...)
 {
 	va_list ap;
 
+	if (!log_noutputs)
+		return;
+
 	if (level >= LL_LAST)
 		return;
 
-	fprintf(log_output[0]->file, "%s: ", log_level[level].prefix);
+	fprintf(log_output[0].file, "%s: ", log_level[level].prefix);
 	va_start(ap, fmt);
-	vfprintf(log_output[0]->file, fmt, ap);
+	vfprintf(log_output[0].file, fmt, ap);
 	va_end(ap);
+
+	fflush(log_output[0].file);
 }
 
 void log_init(void)
