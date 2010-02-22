@@ -54,4 +54,7 @@ struct handler {
 	int	(*exit_func)(struct override *, void *, void *);
 };
 
+int __lrc_call_entry(struct override *o, void *ctxp);
+void __lrc_call_exit(struct override *o, void *ctxp, void *retp);
+
 #endif

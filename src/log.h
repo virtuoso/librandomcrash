@@ -13,5 +13,7 @@ enum {
 };
 
 void log_init(void);
+void log_print(int level, const char *fmt, ...);
+void __noret panic(const char *msg);
 
 #endif

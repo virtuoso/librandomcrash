@@ -24,6 +24,8 @@ extern struct handler *handlers[];
 
 #define MAXQUEUE 32
 
+void __ctor lrc_init(void);
+
 int __lrc_call_entry(struct override *o, void *ctxp)
 {
 	struct handler *queue[MAXQUEUE];
