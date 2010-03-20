@@ -1,5 +1,8 @@
 Building librandomcrash:
 
+ - On a debian(-like) system, you'll need automake, autoconf,
+   autoconf-archive, libtool packages.
+ - Run /usr/share/doc/autotools-dev/examples/autogen.sh or autoreconf.
  - Run configure then make.
  - Pray that worked out.
 
