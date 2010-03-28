@@ -8,8 +8,8 @@
 
 #include "log.h"
 
-static const char my_name[] = "librandomcrash";
-static const char my_ver[] = "0.0.1";
+static const char my_name[] = PACKAGE;
+static const char my_ver[] = VERSION;
 
 static int lrc_up;
 
