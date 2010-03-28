@@ -22,6 +22,11 @@ char log_dir[] = "/tmp";
 
 void __noret panic(const char *msg)
 {
+	int i;
+
+	for (i = 0; i < log_noutputs; i++)
+		fprintf(log_output[i].file, "PANIC: %s", msg);
+
 	abort();
 }
 
