@@ -8,6 +8,7 @@
 #include <stdbool.h>
 
 #include "lrc-libc.h"
+#include "memory.h"
 #include "log.h"
 
 static const char my_name[] = PACKAGE;
@@ -98,6 +99,8 @@ void __ctor lrc_init(void)
 
 	log_init();
 	log_print(LL_OINFO, "%s, %s initialized\n", my_name, my_ver);
+
+	lrc_initmem();
 }
 
 void __dtor lrc_done(void)
