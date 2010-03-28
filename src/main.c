@@ -5,13 +5,20 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
 
+#include "lrc-libc.h"
 #include "log.h"
 
 static const char my_name[] = PACKAGE;
 static const char my_ver[] = VERSION;
 
 static int lrc_up;
+
+bool lrc_is_up(void)
+{
+	return !!lrc_up;
+}
 
 extern struct override *lrc_overrides[];
 extern struct handler *acct_handlers[];
@@ -33,14 +40,14 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 
 	/* first, run the first enabled accounting handler for this call */
 	for (i = 0; acct_handlers[i]; i++)
-		if (!strcmp(acct_handlers[i]->fn_name, o->name) &&
+		if (!lrc_strcmp(acct_handlers[i]->fn_name, o->name) &&
 		    acct_handlers[i]->enabled &&
 		    acct_handlers[i]->probe_func &&
 		    !acct_handlers[i]->probe_func(o, ctxp))
 			break;
 
 	for (i = 0; handlers[i] && qlast < MAXQUEUE; i++)
-		if (!strcmp(handlers[i]->fn_name, o->name) &&
+		if (!lrc_strcmp(handlers[i]->fn_name, o->name) &&
 		    handlers[i]->enabled &&
 		    handlers[i]->probe_func &&
 		    !handlers[i]->probe_func(o, ctxp))
