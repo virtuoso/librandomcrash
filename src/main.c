@@ -13,11 +13,6 @@ static const char my_ver[] = "0.0.1";
 
 static int lrc_up;
 
-void basic_nastiness(struct override *o)
-{
-	log_print(LL_OINFO, "--------------------\n");
-}
-
 extern struct override *lrc_overrides[];
 extern struct handler *acct_handlers[];
 extern struct handler *handlers[];
