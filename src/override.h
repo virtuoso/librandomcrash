@@ -49,6 +49,7 @@ struct handler {
 	int	enabled:1;
 	char	*fn_name;
 	char	*handler_name;
+	void	(*fini_func)(void);
 	int	(*probe_func)(struct override *, void *);
 	int	(*entry_func)(struct override *, void *);
 	int	(*exit_func)(struct override *, void *, void *);

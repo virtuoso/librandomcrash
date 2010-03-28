@@ -105,6 +105,11 @@ void __ctor lrc_init(void)
 
 void __dtor lrc_done(void)
 {
+	int i;
+
+	for (i = 0; acct_handlers[i]; i++)
+		if (acct_handlers[i]->fini_func)
+			acct_handlers[i]->fini_func();
 }
 
 #ifdef __YEAH_RIGHT__
