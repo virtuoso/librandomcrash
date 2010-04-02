@@ -28,6 +28,10 @@ int strncmp
 	const char * s2
 	size_t n
 
+char * strchrnul
+	const char * s
+	int c
+
 char * getenv
 	const char * name
 

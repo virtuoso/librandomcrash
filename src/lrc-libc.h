@@ -52,6 +52,18 @@ static inline int lrc_strncmp(const char *s1, const char *s2, size_t n)
 	return s1[i] - s2[i];
 }
 
+static inline char *lrc_strchrnul(const char *s, int c)
+{
+	int i;
+
+	if (lrc_is_up())
+		return __lrc_orig_strchrnul(s, c);
+
+	for (i = 0; s[i] && s[i] != c; i++);
+
+	return (char *)s + i;
+}
+
 extern char **environ;
 
 static inline char *lrc_getenv(const char *name)
