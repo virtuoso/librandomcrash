@@ -40,5 +40,32 @@ static inline int lrc_strcmp(const char *s1, const char *s2)
 	return s1[i] - s2[i];
 }
 
+static inline int lrc_strncmp(const char *s1, const char *s2, size_t n)
+{
+	int i;
+
+	if (lrc_is_up())
+		return __lrc_orig_strncmp(s1, s2, n);
+
+	for (i = 0; i < n && s1[i] && s1[i] == s2[i]; i++);
+
+	return s1[i] - s2[i];
+}
+
+extern char **environ;
+
+static inline char *lrc_getenv(const char *name)
+{
+	int i;
+	size_t len = lrc_strlen(name);
+
+	for (i = 0; environ[i]; i++) {
+		if (!lrc_strncmp(name, environ[i], len) && environ[i][len] == '=')
+			return environ[i] + len + 1;
+	}
+
+	return 0;
+}
+
 #endif /* RANDOMCRASH_LIBC_H */
 
