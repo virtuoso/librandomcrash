@@ -10,7 +10,7 @@ static inline size_t lrc_strlen(const char *s)
 	if (lrc_is_up())
 		ret = __lrc_orig_strlen(s);
 	else
-		for (ret = 0; *(s + ret); ret);
+		for (ret = 0; *(s + ret); ret++);
 
 	return ret;
 }
