@@ -9,7 +9,7 @@
 static void *mem_base;	/* base of the pool */
 static void *mem_free;	/* first free address within the pool */
 
-static int lrc_pages = 2; /* tunable? */
+static int lrc_pages = 20; /* tunable? */
 static size_t memsz;
 
 void lrc_initmem(void)
