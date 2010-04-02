@@ -48,7 +48,7 @@ static int open_stat_exit(struct override *o, void *ctxp, void *retp)
 		if (!list_tail->next)
 			panic("ran out of memory");
 
-		list_tail->next->name = lrc_alloc(lrc_strlen(file));
+		list_tail->next->name = lrc_alloc(lrc_strlen(file) + 1);
 		if (!list_tail->next->name)
 			panic("ran out of memory");
 
