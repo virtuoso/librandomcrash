@@ -49,20 +49,22 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 		    !acct_handlers[i]->probe_func(o, ctxp))
 			break;
 
-	for (i = 0; handlers[i] && qlast < MAXQUEUE; i++)
-		if (!lrc_strcmp(handlers[i]->fn_name, o->name) &&
-		    handlers[i]->enabled &&
-		    handlers[i]->probe_func &&
-		    !handlers[i]->probe_func(o, ctxp))
-			queue[qlast++] = handlers[i];
+	if (!lrc_conf_int(CONF_NOCRASH)) {
+		for (i = 0; handlers[i] && qlast < MAXQUEUE; i++)
+			if (!lrc_strcmp(handlers[i]->fn_name, o->name) &&
+			    handlers[i]->enabled &&
+			    handlers[i]->probe_func &&
+			    !handlers[i]->probe_func(o, ctxp))
+				queue[qlast++] = handlers[i];
 
-	if (!qlast) {
-		warn("no handlers for %s call\n", o->name);
-		return 0;
+		if (!qlast) {
+			warn("no handlers for %s call\n", o->name);
+			return 0;
+		}
+
+		/* XXX: need to pick a random one */
+		queue[0]->entry_func(o, ctxp);
 	}
-
-	/* XXX: need to pick a random one */
-	queue[0]->entry_func(o, ctxp);
 
 	return 0;
 }
