@@ -7,9 +7,11 @@
 #include <string.h>
 #include <stdbool.h>
 
+#include "symbols.h"
 #include "lrc-libc.h"
 #include "memory.h"
 #include "log.h"
+#include "conf.h"
 
 static const char my_name[] = PACKAGE;
 static const char my_ver[] = VERSION;
@@ -101,6 +103,7 @@ void __ctor lrc_init(void)
 	log_print(LL_OINFO, "%s, %s initialized\n", my_name, my_ver);
 
 	lrc_initmem();
+	lrc_configure();
 }
 
 void __dtor lrc_done(void)
