@@ -37,7 +37,7 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 	if (!lrc_up)
 		lrc_init();
 
-	log_print(LL_PINFO, "%s() entry\n", o->name);
+	debug("%s() entry\n", o->name);
 
 	/* first, run the first enabled accounting handler for this call */
 	for (i = 0; acct_handlers[i]; i++)
@@ -55,7 +55,7 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 			queue[qlast++] = handlers[i];
 
 	if (!qlast) {
-		log_print(LL_OWARN, "no handlers for %s call\n", o->name);
+		warn("no handlers for %s call\n", o->name);
 		return 0;
 	}
 
@@ -73,7 +73,7 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 	if (!lrc_up)
 		panic("Stack corruption detected");
 
-	log_print(LL_PINFO, "%s() exit, ret=%d\n", o->name,
+	debug("%s() exit, ret=%d\n", o->name,
 		  retp ? *(int *)retp : 0);
 
 	if (callctx->acct_handler && callctx->acct_handler->exit_func)

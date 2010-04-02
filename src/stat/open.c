@@ -40,7 +40,7 @@ static int open_stat_exit(struct override *o, void *ctxp, void *retp)
 	const char *file = args->file;
 	struct open_stat_file *osf;
 
-	log_print(LL_PINFO, "opening \"%s\"\n", file);
+	debug("opening \"%s\"\n", file);
 
 	osf = file_find(file);
 	if (!osf) {

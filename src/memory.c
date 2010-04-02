@@ -20,7 +20,7 @@ void lrc_initmem(void)
 	if (mem_base == MAP_FAILED)
 		panic("mmap failed");
 
-	log_print(LL_PINFO, "reserved %d bytes of memory for LRC\n", memsz);
+	debug("reserved %d bytes of memory for LRC\n", memsz);
 	mem_free = mem_base;
 }
 
