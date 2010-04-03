@@ -9,6 +9,7 @@ struct handler *acct_handlers[] = {
 struct handler *handlers[] = {
 	&read_randomcase,
 	&opendir_retnull,
+	&getenv_retnull,
 	NULL,
 };
 
