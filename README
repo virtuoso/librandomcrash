@@ -19,3 +19,8 @@ supported options:
   - logdir=PATH -- location of the log files storage (not yet supported
     by the logging code).
 
+lrc development:
+
+irc: #lrc-devel @ irc.freenode.net
+git: git://github.com/virtuoso/librandomcrash.git
+bts: http://virtuoso.lighthouseapp.com/projects/46433-librandomcrash/overview
