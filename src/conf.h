@@ -7,7 +7,7 @@
 
 void lrc_configure(void);
 int lrc_conf_int(int what);
-int lrc_conf_str(int what);
+char *lrc_conf_str(int what);
 
 enum {
 	CONF_LOGDIR = 0,

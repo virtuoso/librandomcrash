@@ -65,7 +65,7 @@ int lrc_conf_int(int what)
 	return opts[what].val_int;
 }
 
-int lrc_conf_str(int what)
+char *lrc_conf_str(int what)
 {
 	return opts[what].val_str;
 }
