@@ -95,7 +95,7 @@ void lrc_configure(void)
 				break;
 			}
 
-		if (i == arrsz(opts))
+		if (i == arrsz(opts) && e != s)
 			log_print(LL_OWARN, "unknown option: %.*s\n", e - s, s);
 
 		s = e + 1;
