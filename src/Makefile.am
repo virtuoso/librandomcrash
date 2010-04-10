@@ -1,5 +1,5 @@
 lib_LTLIBRARIES = librandomcrash.la
-bin_PROGRAMS = lrc_test
+bin_PROGRAMS = lrc_test randomcrash
 
 CLEANFILES =
 
@@ -8,12 +8,16 @@ EXTRA_DIST = librandomcrash.sym \
 
 AM_LDFLAGS = -no-undefined
 
+randomcrash_SOURCES = randomcrash.c
+randomcrash_CPPFLAGS = -DPKG_PREFIX=\"$(prefix)\" $(debug)
+
 librandomcrash_la_SOURCES = symbols.c main.c read.c opendir.c handlers.c \
 	getenv.c \
 	log.c memory.c conf.c \
 	stat/open.c
 
 librandomcrash_la_LIBADD = -ldl
+librandomcrash_la_CPPFLAGS = $(debug)
 
 lrc_test_SOURCES = symbols.c main.c read.c opendir.c handlers.c \
 	getenv.c \
@@ -21,7 +25,7 @@ lrc_test_SOURCES = symbols.c main.c read.c opendir.c handlers.c \
 	stat/open.c
 
 lrc_test_LDADD = -ldl
-lrc_test_CPPFLAGS = -D__YEAH_RIGHT__
+lrc_test_CPPFLAGS = -D__YEAH_RIGHT__  $(debug)
 
 symbols.c: symbols.list
 	awk -f symbols.awk < $< > $@

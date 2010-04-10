@@ -42,6 +42,13 @@ esac
 AM_CONDITIONAL(HAVE_DARWIN, [test "${SYS}" = "darwin"])
 AM_CONDITIONAL(HAVE_LINUX, [test "${SYS}" = "linux"])
 
+AC_ARG_WITH(debug,
+		AS_HELP_STRING([--with-debug],
+		               [enables hacker mode]),
+			       [debug="-D__LRC_DEBUG__"],
+			       [debug="-U__LRC_DEBUG__"])
+AC_SUBST(debug)
+
 SYMBOL_PREFIX="lrc_"
 AC_DEFINE_UNQUOTED(SYMBOL_PREFIX, "${SYMBOL_PREFIX}", [Define to prefix exported library symbols])
 AC_SUBST(SYMBOL_PREFIX)
