@@ -5,5 +5,6 @@ extern struct handler read_randomcase;
 extern struct handler open_stat;
 extern struct handler opendir_retnull;
 extern struct handler getenv_retnull;
+extern struct handler readdir_retnull;
 
 #endif

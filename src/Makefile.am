@@ -12,7 +12,7 @@ randomcrash_SOURCES = randomcrash.c
 randomcrash_CPPFLAGS = -DPKG_PREFIX=\"$(prefix)\" $(debug)
 
 librandomcrash_la_SOURCES = symbols.c main.c read.c opendir.c handlers.c \
-	getenv.c \
+	getenv.c readdir.c \
 	log.c memory.c conf.c \
 	stat/open.c
 
@@ -20,7 +20,7 @@ librandomcrash_la_LIBADD = -ldl
 librandomcrash_la_CPPFLAGS = $(debug)
 
 lrc_test_SOURCES = symbols.c main.c read.c opendir.c handlers.c \
-	getenv.c \
+	getenv.c readdir.c \
 	log.c memory.c conf.c \
 	stat/open.c
 

@@ -10,6 +10,7 @@ struct handler *handlers[] = {
 	&read_randomcase,
 	&opendir_retnull,
 	&getenv_retnull,
+	&readdir_retnull,
 	NULL,
 };
 
