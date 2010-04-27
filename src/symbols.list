@@ -5,6 +5,7 @@
 int access
 	const char * pathname
 	int mode
+-- CRASH_COND(INVALID_PTR(pathname))
 
 int brk
 	void * addr
@@ -14,26 +15,37 @@ void * sbrk
 
 size_t strlen
 	const char * s
+-- CRASH_COND(INVALID_PTR(s))
 
 char * strcpy
 	char * dest
 	const char * src
+-- CRASH_COND(INVALID_PTR(dest))
+-- CRASH_COND(INVALID_PTR(src))
 
 int strcmp
 	const char * s1
 	const char * s2
+-- CRASH_COND(INVALID_PTR(s1))
+-- CRASH_COND(INVALID_PTR(s2))
 
 int strncmp
 	const char * s1
 	const char * s2
 	size_t n
+-- CRASH_COND(INVALID_PTR(s1))
+-- CRASH_COND(INVALID_PTR(s2))
+
 
 char * strchrnul
 	const char * s
 	int c
+-- CRASH_COND(INVALID_PTR(s))
+
 
 char * getenv
 	const char * name
+-- CRASH_COND(INVALID_PTR(name))
 
 -- include <stdarg.h>
 
@@ -41,6 +53,7 @@ int open
 	const char * file
 	int oflag
 	...
+-- CRASH_COND(INVALID_PTR(file))
 
 int close
 	int fd
@@ -49,17 +62,21 @@ ssize_t read
 	int fd
 	void * buf
 	size_t count
+-- CRASH_COND(INVALID_PTR(buf))
 
 ssize_t write
 	int fd
 	const void * buf
 	size_t count
+-- CRASH_COND(INVALID_PTR(buf))
 
 -- include <dirent.h>
 
 struct dirent * readdir
 @@ __nonnull ((1))
 	DIR * __dirp
+-- CRASH_COND(INVALID_PTR(__dirp))
 
 DIR * opendir
 	const char * name
+-- CRASH_COND(INVALID_PTR(name))
