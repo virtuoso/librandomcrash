@@ -58,4 +58,14 @@ struct handler {
 int __lrc_call_entry(struct override *o, void *ctxp);
 void __lrc_call_exit(struct override *o, void *ctxp, void *retp);
 
+void lrc_going_to_crash(const char *site, const char *cond);
+
+#define CRASH_COND(cond)				\
+	if ((cond)) {					\
+		lrc_going_to_crash(__func__, # cond);	\
+	}
+
+/* XXX: this should check /proc/self/maps instead */
+#define INVALID_PTR(ptr) (ptr == NULL)
+
 #endif
