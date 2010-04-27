@@ -45,7 +45,7 @@ function get_type_name(str)
 # return __ret;
 # ---
 function mk_fn_body(__fn_name, __fn_typename, __fn_addargs, __fn_paramlist, \
-		    __paramlist_args, __ret0, __ret1, __ret2, __ret3)
+		    __prologue, __paramlist_args, __ret0, __ret1, __ret2, __ret3)
 {
     if (__fn_typename == "void") {
 	__ret2 = "NULL"
@@ -65,11 +65,12 @@ function mk_fn_body(__fn_name, __fn_typename, __fn_addargs, __fn_paramlist, \
     return sprintf(							\
 	"%s"								\
 	"\tstruct __lrc_callctx_%s args =\n\t\t{ {}, %s };\n"		\
-	"%s"								\
+	"%s\n%s"							\
 	"\tif (!__lrc_call_entry(&__lrc_call_%s, &args))\n"		\
 	"\t\t%s((__lrc_%s_fn)__lrc_call_%s.orig_func)(%s);\n"		\
 	"\t__lrc_call_exit(&__lrc_call_%s, &args, %s);%s",		\
-	__fn_addargs, __fn_name, __fn_paramlist, __ret0, __fn_name,	\
+	__fn_addargs, __fn_name, __fn_paramlist, __ret0, __prologue,	\
+	__fn_name,							\
 	__ret1, __fn_name, __fn_name, __paramlist_args, __fn_name,	\
 	__ret2, __ret3)
 }
@@ -97,7 +98,7 @@ function flush_function()
 
     printf("typedef %s (*__lrc_%s_fn)(%s);\n", fn_typename, fn_name, fn_paramlist)
 
-    fn_body = mk_fn_body(fn_name, fn_typename, fn_addargs, fn_paramlist_call)
+    fn_body = mk_fn_body(fn_name, fn_typename, fn_addargs, fn_paramlist_call, fn_prologue)
 
     # use void for empty parameters list
     fn_paramlist = fn_paramlist ? fn_paramlist : "void"
@@ -119,6 +120,7 @@ function flush_function()
     fn_nargs = 0
     fn_tail = ""
     fn_addargs = ""
+    fn_prologue = ""
 }
 
 BEGIN {
@@ -138,6 +140,14 @@ END {
 	print "#include " $3
 	print "#include " $3 >"symbols.h"
 	next
+}
+
+/^--/ {
+    fn_prologue = fn_prologue ? fn_prologue "\t" : "\t"
+    for (i = 2; i <= NF; i++)
+	fn_prologue = i == 2 ? fn_prologue $i : fn_prologue " " $i
+    fn_prologue = fn_prologue ";\n"
+    next
 }
 
 # skip comments
