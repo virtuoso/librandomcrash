@@ -16,7 +16,9 @@ between type and name: for example, "void *buf" will not work, make it
 A new call definition starts at the beginning of the line, its arguments
 follow immediately, each starting with a tab on a new line.
 In that file you should also specify necessary header files so that all
-the type names make sense: "-- include <sys/types.h>".
+the type names make sense: "-- include <sys/types.h>". You can also add
+arbitrary C code to a function's prologue by specifying "-- code()" after
+the parameters.
 
 Then, a script called symbols.awk will parse symbols.list and output two
 files: symols.h and symbols.c.
