@@ -63,7 +63,7 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 		}
 
 		/* XXX: need to pick a random one */
-		queue[0]->entry_func(o, ctxp);
+		return queue[0]->entry_func(o, ctxp);
 	}
 
 	return 0;
