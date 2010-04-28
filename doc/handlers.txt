@@ -1,0 +1,25 @@
+This is a description of what "handlers" are in the context of LRC.
+
+A handler stands to be an action that takes place when application makes a
+library call that LRC successfully intercepted. There are two types of handlers:
+accounting and action, the difference being that LRC will execute the first
+enabled accounting handler for a call and only one of the action handlers,
+picked at random (or some policy that defines how and then to run action
+handlers).
+
+A handler is an instance of struct handler, which defines its name, name of
+the library call it will operate on and a set of functions:
+  * probe -- given a context, return 0 if it decides to run; accounting handlers
+    should call lrc_callctx_set_handler() in the 'probe' method as well (unlike
+    actions, which do it in 'enter');
+  * entry -- for actions, called upon an intercepted call's entry, not used for
+    accounting handlers; return value of 0 means lrc should proceed to call the
+    original library's function;
+  * exit -- called before returning to the guest program.
+
+Intercepted functions' parameters are passed to handlers in 'void *ctxp', which
+should be typecasted to __lrc_callctx_<function>, where <function> is the name
+of the call being handled. Pointer to the return value is passed to the 'exit'
+method as 'void *retp', and can also be modified before returning to the guest
+program.
+
