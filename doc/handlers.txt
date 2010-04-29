@@ -16,6 +16,8 @@ the library call it will operate on and a set of functions:
     accounting handlers; return value of 0 means lrc should proceed to call the
     original library's function;
   * exit -- called before returning to the guest program.
+  * fini -- called for all accounting handlers upon lrc destruction (used to
+    output statistics gathered by those handlers, for example).
 
 Intercepted functions' parameters are passed to handlers in 'void *ctxp', which
 should be typecasted to __lrc_callctx_<function>, where <function> is the name
