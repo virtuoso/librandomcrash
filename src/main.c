@@ -1,4 +1,3 @@
-#include "override.h"
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <sys/types.h>
@@ -7,6 +6,8 @@
 #include <string.h>
 #include <stdbool.h>
 
+#include "override.h"
+#include "handlers.h"
 #include "symbols.h"
 #include "lrc-libc.h"
 #include "memory.h"
