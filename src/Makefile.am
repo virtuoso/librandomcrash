@@ -1,5 +1,5 @@
 lib_LTLIBRARIES = librandomcrash.la
-bin_PROGRAMS = lrc_test randomcrash
+bin_PROGRAMS = lrc_test
 
 CLEANFILES =
 
@@ -7,9 +7,6 @@ EXTRA_DIST = librandomcrash.sym \
 	librandomcrash.pc.in
 
 AM_LDFLAGS = -no-undefined
-
-randomcrash_SOURCES = randomcrash.c
-randomcrash_CPPFLAGS = -DPKG_PREFIX=\"$(prefix)\" $(debug)
 
 librandomcrash_la_SOURCES = symbols.c main.c read.c opendir.c handlers.c \
 	getenv.c readdir.c \

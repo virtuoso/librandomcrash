@@ -53,6 +53,6 @@ SYMBOL_PREFIX="lrc_"
 AC_DEFINE_UNQUOTED(SYMBOL_PREFIX, "${SYMBOL_PREFIX}", [Define to prefix exported library symbols])
 AC_SUBST(SYMBOL_PREFIX)
 
-AC_CONFIG_FILES([Makefile] [src/librandomcrash.pc] [src/Makefile])
+AC_CONFIG_FILES([Makefile] [src/librandomcrash.pc] [src/Makefile] [launcher/Makefile])
 AC_OUTPUT
 
