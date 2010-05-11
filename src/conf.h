@@ -33,6 +33,7 @@ enum {
 	CONF_LOGDIR = 0,
 	CONF_NOCRASH,
 	CONF_SKIPCALLS,
+	CONF_FD,
 };
 
 #endif /* RANDOMCRASH_CONFIG_H */

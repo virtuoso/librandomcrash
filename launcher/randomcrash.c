@@ -26,6 +26,7 @@
 #include <string.h>
 #include <getopt.h>
 #include <stdarg.h>
+#include <sys/poll.h>
 
 static const char my_name[] = "randomcrash";
 static const char my_ver[] = VERSION;
@@ -137,12 +138,87 @@ static char *append_strings(char *string, int n, ...)
 	return s;
 }
 
+/* IPC */
+int inbound_fd[2];
+
+/* main loop */
+int child_started(pid_t pid)
+{
+	struct pollfd fds = {
+		.fd = inbound_fd[0],
+		.events = POLLIN,
+	};
+	char buf[512];
+	int ret;
+
+	for (;;) {
+		poll(&fds, 1, 1000);
+		if (fds.revents & POLLIN) {
+			read(fds.fd, buf, 512);
+			fprintf(stderr, ">>> %s\n", buf);
+		}
+
+		/* XXX */
+		if (waitpid(-1, &ret, WNOHANG))
+			return ret;
+	}
+
+	return 0;
+}
+
+int spawn(const char *cmd, char *const argv[])
+{
+	pid_t pid;
+	int i = 0;
+	int ret;
+
+	/*if (verbosity >= VERB_DEBUG) {
+		DBG("going to execute [%s]:", cmd);
+		while (argv[i])
+			output(ERR, VERB_DEBUG, " %s", argv[i++]);
+		output(ERR, VERB_DEBUG, "\n");
+		}*/
+
+	pid = fork();
+	if (pid) {
+		close(inbound_fd[1]);
+		return child_started(pid);
+		//waitpid(-1, &ret, 0); /* <- fall through */
+	} else {
+		close(inbound_fd[0]);
+		/*close(1);
+		  close(2);
+
+		  dup2(fileno(OUT[LOG]), 1);
+		  dup2(fileno(OUT[LOG]), 2);*/
+
+		ret = execve(cmd, argv, environ);
+		if (ret) {
+			fprintf(stderr, "exec %s failed\n", cmd);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	/*if (verbosity >= VERB_DEBUG)
+	{
+		DBG("exit code: ");
+		if (WIFEXITED(ret))
+			output(ERR, VERB_DEBUG, "%d\n", WEXITSTATUS(ret));
+		else if (WIFSIGNALED(ret))
+			output(ERR, VERB_DEBUG, "SIG %d%s\n", WTERMSIG(ret),
+			       WCOREDUMP(ret) ? " (core dumped)" : "");
+			       }*/
+
+	return ret;// (WIFEXITED(ret) && WEXITSTATUS(ret) == 0);
+}
+
 int main(int argc, char *const argv[])
 {
 	int loptidx, c, i;
 	char **new_argv;
 	char *executable;
 	char *lrc_opts = NULL;
+	char *ipc_fdin = NULL;
 	int no_crash = 0;
 	char *logdir = NULL;
 	unsigned long int skip_calls = 0;
@@ -201,6 +277,17 @@ int main(int argc, char *const argv[])
 
 	setenv("LD_PRELOAD", lrc_path, 1);
 
+	/* IPC init */
+	i = pipe(inbound_fd);
+	if (i) {
+		fprintf(stderr, "Failed to create a pipe\n");
+		exit(EXIT_FAILURE);
+	}
+
+	asprintf(&ipc_fdin, "fd=%d:", inbound_fd[1]);
+	lrc_opts = append_string(lrc_opts, ipc_fdin);
+	free(ipc_fdin);
+
 	if (no_crash)
 		lrc_opts = append_string(lrc_opts, "no-crash:");
 
@@ -215,8 +302,9 @@ int main(int argc, char *const argv[])
 	setenv(LRC_CONFIG_ENV, lrc_opts ? lrc_opts : "", 1);
 
 	/* perhaps it makes sense to fork and handle the exit codes */
-	i = execve(executable, new_argv, environ);
-	fprintf(stderr, "Failed trying to execute %s: %m\n", executable);
+	i = spawn(executable, new_argv);
+	if (i)
+		fprintf(stderr, "Failed trying to execute %s: %m\n", executable);
 
 	return i;
 }

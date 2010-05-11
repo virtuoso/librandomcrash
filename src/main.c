@@ -208,6 +208,10 @@ EXPORT void __ctor lrc_init(void)
 	lrc_configure();
 
 	lrc_up++;
+
+	if (lrc_conf_long(CONF_FD)) {
+		dprintf(lrc_conf_long(CONF_FD), "Watup, %d\n", getpid());
+	}
 	lrc_leave();
 }
 
