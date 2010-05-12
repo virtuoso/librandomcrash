@@ -8,18 +8,36 @@ EXTRA_DIST = librandomcrash.sym \
 
 AM_LDFLAGS = -no-undefined
 
-librandomcrash_la_SOURCES = symbols.c main.c read.c opendir.c handlers.c \
-	getenv.c readdir.c \
-	log.c memory.c conf.c crash.c \
-	stat/open.c
+librandomcrash_la_SOURCES =	\
+	symbols.c		\
+	main.c			\
+	handlers.c		\
+	log.c			\
+	memory.c		\
+	conf.c			\
+	crash.c			\
+	handlers/open.c		\
+	handlers/read.c		\
+	handlers/opendir.c	\
+	handlers/getenv.c	\
+	handlers/readdir.c
 
 librandomcrash_la_LIBADD = -ldl
 librandomcrash_la_CPPFLAGS = $(debug)
 
-lrc_test_SOURCES = symbols.c main.c read.c opendir.c handlers.c \
-	getenv.c readdir.c \
-	log.c memory.c conf.c crash.c \
-	stat/open.c
+lrc_test_SOURCES =		\
+	symbols.c		\
+	main.c			\
+	handlers.c		\
+	log.c			\
+	memory.c		\
+	conf.c			\
+	crash.c			\
+	handlers/open.c		\
+	handlers/read.c		\
+	handlers/opendir.c	\
+	handlers/getenv.c	\
+	handlers/readdir.c
 
 lrc_test_LDADD = -ldl
 lrc_test_CPPFLAGS = -D__YEAH_RIGHT__  $(debug)
