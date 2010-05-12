@@ -8,7 +8,7 @@ Building librandomcrash:
 
 Enjoying it:
 
- - src/randomcrash -l -- /bin/cat /etc/fstab
+ - launcher/randomcrash -l -- /bin/cat /etc/fstab
 
 Options:
 
