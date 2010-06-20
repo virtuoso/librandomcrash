@@ -99,5 +99,25 @@ static inline char *lrc_getenv(const char *name)
 	return 0;
 }
 
+static inline ssize_t lrc_write(int fd, const void *buf, size_t count)
+{
+	if (lrc_is_up())
+		return __lrc_orig_write(fd, buf, count);
+
+	panic("lrc_write called before LRC is up.\n");
+
+	return 0xdeadbeef;
+}
+
+static inline ssize_t lrc_read(int fd, void *buf, size_t count)
+{
+	if (lrc_is_up())
+		return __lrc_orig_read(fd, buf, count);
+
+	panic("lrc_read called before LRC is up.\n");
+
+	return 0xdeadbeef;
+}
+
 #endif /* RANDOMCRASH_LIBC_H */
 
