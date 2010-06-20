@@ -84,6 +84,41 @@ static inline char *lrc_strchrnul(const char *s, int c)
 	return (char *)s + i;
 }
 
+static inline pid_t lrc_gettid(void)
+{
+	/* XXX: gettid with glibc would require syscall() and I'm lazy now */
+	if (lrc_is_up())
+		return __lrc_orig_getpid();
+
+	return -1;
+}
+
+static inline void *lrc_memset(void *s, int c, size_t n)
+{
+	int i;
+
+	if (lrc_is_up())
+		return __lrc_orig_memset(s, c, n);
+
+	for (i = 0; i < n; i++)
+		((unsigned char *)s)[i] = c;
+
+	return s;
+}
+
+static inline void *lrc_memcpy(void *dest, const void *src, size_t n)
+{
+	size_t i;
+
+	if (lrc_is_up())
+		return __lrc_orig_memcpy(dest, src, n);
+
+	for (i = 0; i < n; i++)
+		*(unsigned char *)dest++ = *(unsigned char *)src++;
+
+	return dest;
+}
+
 extern char **environ;
 
 static inline char *lrc_getenv(const char *name)

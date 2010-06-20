@@ -99,3 +99,18 @@ struct dirent * readdir
 DIR * opendir
 	const char * name
 -- CRASH_COND(INVALID_PTR(name))
+
+pid_t getpid
+
+void * memset
+	void * s
+	int c
+	size_t n
+-- CRASH_COND(INVALID_PTR(s))
+
+void * memcpy
+	void * dest
+	const void * src
+	size_t n
+-- CRASH_COND(INVALID_PTR(dest))
+-- CRASH_COND(INVALID_PTR(src))
