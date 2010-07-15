@@ -28,6 +28,8 @@
 #include <stdarg.h>
 #include <sys/poll.h>
 
+#include "proto.h"
+
 static const char my_name[] = "randomcrash";
 static const char my_ver[] = VERSION;
 
@@ -140,22 +142,125 @@ static char *append_strings(char *string, int n, ...)
 
 /* IPC */
 int inbound_fd[2];
+int outbound_fd[2];
+
+struct child {
+	pid_t		pid, ppid;
+	int		inbound_fd[2];
+	int		outbound_fd[2];
+	struct child	*prev, *next;
+};
+
+static struct child *children;
+static int nchildren;
+static struct pollfd *fds;
+
+static void children2fds(void)
+{
+	struct child *child = children;
+	int i = 0;
+
+	fds = realloc(fds, sizeof(*fds) * nchildren);
+	fds[0].fd = inbound_fd[0];
+	fds[0].events = POLLIN;
+
+	for (i = 1; i < nchildren + 1; i++) {
+		fds[i].fd = child->inbound_fd[0];
+		fds[i].events = POLLIN;
+		child = child->next;
+	}
+}
+
+static inline void child_add_tail(struct child *child)
+{
+	if (children) {
+		child->next = children;
+		child->prev = children->prev;
+		children->prev = child;
+	} else
+		children = child;
+}
+
+struct child *child_new(pid_t pid, pid_t ppid)
+{
+	struct child *child;
+
+	child = xmalloc(sizeof(*child));
+	child->pid = pid;
+	child->ppid = ppid;
+	child->next = child->prev = child;
+	child_add_tail(child);
+
+	pipe(child->inbound_fd);
+	pipe(child->outbound_fd);
+
+	nchildren++;
+
+	children2fds();
+
+	return child;
+}
+
+struct child *child_find_by_pid(pid_t pid)
+{
+	struct child *child = children;
+	int i = 0;
+
+	for (i = 1; i < nchildren + 1; i++) {
+		if (child->pid == pid)
+			return child;
+		child = child->next;
+	}
+
+	return NULL;
+}
+
+void child_free(pid_t pid)
+{
+	struct child *child;
+
+	child = child_find_by_pid(pid);
+	if (!child) /* XXX: report */
+		return;
+
+	close(child->inbound_fd[0]);
+	close(child->outbound_fd[1]);
+
+	child->next->prev = child->prev;
+	child->prev->next = child->next;
+}
 
 /* main loop */
 int child_started(pid_t pid)
 {
-	struct pollfd fds = {
-		.fd = inbound_fd[0],
-		.events = POLLIN,
-	};
-	char buf[512];
 	int ret;
+	struct lrc_message *m;
 
 	for (;;) {
-		poll(&fds, 1, 1000);
-		if (fds.revents & POLLIN) {
-			read(fds.fd, buf, 512);
-			fprintf(stderr, ">>> %s\n", buf);
+		ret = poll(fds, nchildren + 1, 0);
+		if (ret > 0) {
+			int i;
+			for (i = 0; i < nchildren + 1 && ret; i++)
+				if (fds[i].revents & POLLIN) {
+					struct child *child;
+
+					ret--;
+					m = lrc_message_recv(fds[ret].fd);
+					fprintf(stderr, ">>> %d\n", m->pid);
+					child = child_new(m->pid, 0);
+					free(m);
+
+					m = xmalloc(sizeof(*m) + sizeof(int) * 2);
+
+					lrc_message_init(m);
+					m->length = sizeof(int) * 2;
+					memcpy(&m->payload.response.buf[0], &child->inbound_fd[1], sizeof(int));
+					memcpy(&m->payload.response.buf[4], &child->outbound_fd[0], sizeof(int));
+					m->payload.response.code = 1; /* XXX */
+					m->type = MT_RESPONSE;
+					lrc_message_send(outbound_fd[1], m);
+					free(m);
+				}
 		}
 
 		/* XXX */
@@ -182,10 +287,12 @@ int spawn(const char *cmd, char *const argv[])
 	pid = fork();
 	if (pid) {
 		close(inbound_fd[1]);
+		close(outbound_fd[0]);
 		return child_started(pid);
 		//waitpid(-1, &ret, 0); /* <- fall through */
 	} else {
 		close(inbound_fd[0]);
+		close(outbound_fd[1]);
 		/*close(1);
 		  close(2);
 
@@ -284,7 +391,17 @@ int main(int argc, char *const argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	asprintf(&ipc_fdin, "fd=%d:", inbound_fd[1]);
+	asprintf(&ipc_fdin, "fdout=%d:", inbound_fd[1]);
+	lrc_opts = append_string(lrc_opts, ipc_fdin);
+	free(ipc_fdin);
+
+	i = pipe(outbound_fd);
+	if (i) {
+		fprintf(stderr, "Failed to create a pipe\n");
+		exit(EXIT_FAILURE);
+	}
+
+	asprintf(&ipc_fdin, "fdin=%d:", outbound_fd[0]);
 	lrc_opts = append_string(lrc_opts, ipc_fdin);
 	free(ipc_fdin);
 
@@ -300,6 +417,8 @@ int main(int argc, char *const argv[])
 	}
 
 	setenv(LRC_CONFIG_ENV, lrc_opts ? lrc_opts : "", 1);
+
+	children2fds();
 
 	/* perhaps it makes sense to fork and handle the exit codes */
 	i = spawn(executable, new_argv);

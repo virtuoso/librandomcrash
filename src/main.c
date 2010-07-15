@@ -34,6 +34,7 @@
 #include "lrc-libc.h"
 #include "memory.h"
 #include "conf.h"
+#include "proto.h"
 
 static const char my_name[] = PACKAGE;
 static const char my_ver[] = VERSION;
@@ -111,8 +112,6 @@ extern struct handler *handlers[];
 
 #define MAXQUEUE 32
 
-void __ctor lrc_init(void);
-
 static unsigned long int lrc_callno = 0;
 
 int __lrc_call_entry(struct override *o, void *ctxp)
@@ -185,6 +184,39 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 	lrc_leave();
 }
 
+void __ctor lrc_init(void);
+
+struct lrc_bus lrc_bus;
+
+void lrc_initbus(void)
+{
+	struct lrc_message m, *r;
+
+	if (!lrc_conf_long(CONF_FDIN) || !lrc_conf_long(CONF_FDOUT))
+		return;
+
+	lrc_bus.fd_in = lrc_conf_long(CONF_FDIN);
+	lrc_bus.fd_out = lrc_conf_long(CONF_FDOUT);
+
+	lrc_message_init(&m);
+	m.payload.handshake.flags = 0xabbadead; /* XXX */
+	m.type = MT_HANDSHAKE;
+	lrc_message_send(lrc_bus.fd_out, &m);
+
+	r = lrc_message_recv(lrc_bus.fd_in);
+	if (r->type == MT_RESPONSE) {
+		log_print(LL_OINFO, "connected to launcher, fds: %d<>%d\n",
+			  (int)r->payload.response.buf[0], (int)r->payload.response.buf[4]);
+		lrc_bus.connected = 1;
+	}
+}
+
+void lrc_dobus(void)
+{
+	if (!lrc_bus.connected)
+		return;
+}
+
 EXPORT void __ctor lrc_init(void)
 {
 	int i;
@@ -207,11 +239,14 @@ EXPORT void __ctor lrc_init(void)
 	lrc_initmem();
 	lrc_configure();
 
+	if (lrc_conf_long(CONF_FDOUT)) {
+		dprintf(lrc_conf_long(CONF_FDOUT), "Watup, %d\n", getpid());
+	}
+
+	lrc_initbus();
+
 	lrc_up++;
 
-	if (lrc_conf_long(CONF_FD)) {
-		dprintf(lrc_conf_long(CONF_FD), "Watup, %d\n", getpid());
-	}
 	lrc_leave();
 }
 

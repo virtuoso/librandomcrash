@@ -16,6 +16,7 @@ librandomcrash_la_SOURCES =	\
 	memory.c		\
 	conf.c			\
 	crash.c			\
+	bus.c			\
 	handlers/open.c		\
 	handlers/read.c		\
 	handlers/opendir.c	\
@@ -23,7 +24,7 @@ librandomcrash_la_SOURCES =	\
 	handlers/readdir.c
 
 librandomcrash_la_LIBADD = -ldl
-librandomcrash_la_CPPFLAGS = -fvisibility=hidden $(debug)
+librandomcrash_la_CPPFLAGS = -I../common -fvisibility=hidden $(debug)
 
 lrc_test_SOURCES =		\
 	symbols.c		\
@@ -33,6 +34,7 @@ lrc_test_SOURCES =		\
 	memory.c		\
 	conf.c			\
 	crash.c			\
+	bus.c			\
 	handlers/open.c		\
 	handlers/read.c		\
 	handlers/opendir.c	\
@@ -40,7 +42,7 @@ lrc_test_SOURCES =		\
 	handlers/readdir.c
 
 lrc_test_LDADD = -ldl
-lrc_test_CPPFLAGS = -D__YEAH_RIGHT__  $(debug)
+lrc_test_CPPFLAGS = -I../common -D__YEAH_RIGHT__  $(debug)
 
 symbols.c: symbols.list
 	awk -f symbols.awk < $< > $@

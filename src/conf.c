@@ -84,7 +84,12 @@ static int opt_logdir_parse(struct config_opt *co, char *str, size_t len)
 	return opt_str_parse(co, str, len);
 }
 
-static int opt_fd_parse(struct config_opt *co, char *str, size_t len)
+static int opt_fdin_parse(struct config_opt *co, char *str, size_t len)
+{
+	return opt_long_parse(co, str, len);
+}
+
+static int opt_fdout_parse(struct config_opt *co, char *str, size_t len)
 {
 	return opt_long_parse(co, str, len);
 }
@@ -103,7 +108,8 @@ static struct config_opt opts[] = {
 	[CONF_LOGDIR]    = { "logdir",     0, opt_logdir_parse },
 	[CONF_NOCRASH]   = { "no-crash",   0, opt_no_crash_parse },
 	[CONF_SKIPCALLS] = { "skip-calls", 0, opt_skip_calls_parse },
-	[CONF_FD]        = { "fd",         0, opt_fd_parse },
+	[CONF_FDIN]      = { "fdin",       0, opt_fdin_parse },
+	[CONF_FDOUT]     = { "fdout",      0, opt_fdout_parse },
 };
 
 char *lrc_conf_str(int what)
