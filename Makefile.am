@@ -1,1 +1,1 @@
-SUBDIRS = src launcher
+SUBDIRS = src launcher tests
