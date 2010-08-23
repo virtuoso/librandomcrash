@@ -1,0 +1,8 @@
+This file describes the interface between the launcher (launcher/randomcrash)
+and librandomcrash.
+
+Run-time configuration options are stored in the LRC_CONFIG environment
+variable, which is then parsed by lrc during its initialization.
+
+That's it for now.
+
