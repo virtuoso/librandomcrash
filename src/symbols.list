@@ -123,3 +123,6 @@ int sigemptyset
 int sigfillset
 	sigset_t * set
 -- CRASH_COND(INVALID_PTR(set))
+
+pid_t fork
+

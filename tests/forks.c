@@ -3,7 +3,7 @@
 #include <sys/types.h>
 #include <signal.h>
 
-#define NFORKS 16
+#define NFORKS 8
 static pid_t pids[NFORKS];
 
 static void sighand(int sig)
