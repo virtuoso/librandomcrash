@@ -20,3 +20,9 @@ missing
 aclocal.m4
 autom4te.cache
 install-sh
+launcher/randomcrash
+src/lrc_test
+src/symbols.c
+src/symbols.h
+tests/t_opendir
+tests/t_readdir
