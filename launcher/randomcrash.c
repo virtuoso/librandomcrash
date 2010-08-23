@@ -40,6 +40,10 @@ static char lrc_path[PATH_MAX];
 #define LRC_CONFIG_ENV "LRC_CONFIG"
 #endif
 
+#ifndef LRC_SRC_BASE_DIR
+#define LRC_SRC_BASE_DIR get_current_dir_name()
+#endif
+
 static const struct option options[] = {
 	{ "help",	0, 0, 'h' },
 	{ "no-crash",	0, 0, 'n' },
@@ -164,7 +168,7 @@ int main(int argc, char *const argv[])
 			case 'l':
 				snprintf(lrc_path, PATH_MAX,
 					 "%s/src/.libs/librandomcrash.so.%s",
-					 get_current_dir_name(), my_ver);
+					 LRC_SRC_BASE_DIR, my_ver);
 				break;
 #endif
 			default:
