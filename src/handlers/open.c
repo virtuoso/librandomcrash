@@ -25,8 +25,8 @@
 #include "symbols.h"
 #include "handlers.h"
 #include "memory.h"
-#include "lrc-libc.h"
 #include "log.h"
+#include "lrc-libc.h"
 
 static struct open_stat_file {
 	char			*name;

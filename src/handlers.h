@@ -21,6 +21,8 @@
 #ifndef RANDOMCRASH_HANDLERS_H
 #define RANDOMCRASH_HANDLERS_H
 
+struct override;
+
 /*
  * a set of callbacks to be run for a certain intercepted call
  * see doc/handlers.txt for a brief introduction

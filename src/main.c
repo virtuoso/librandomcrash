@@ -29,9 +29,9 @@
 #include "override.h"
 #include "handlers.h"
 #include "symbols.h"
+#include "log.h"
 #include "lrc-libc.h"
 #include "memory.h"
-#include "log.h"
 #include "conf.h"
 
 static const char my_name[] = PACKAGE;

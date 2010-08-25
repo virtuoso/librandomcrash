@@ -41,7 +41,6 @@ static int getenv_retnull_enter(struct override *o, void *ctxp)
 static int getenv_retnull_exit(struct override *o, void *ctxp, void *retp)
 {
         struct __lrc_callctx_getenv *args = ctxp;
-        unsigned char *name = args->name;
 	char **pval = retp;
 
 	*pval = NULL;
