@@ -33,9 +33,9 @@ struct config_opt {
 	const char	*name;
 	unsigned	flags;
 	int		(*parse)(struct config_opt *, char *, size_t);
-	union		{
-		int	val_int;
-		char	*val_str;
+	union {
+        char     *val_str;
+        long int val_long;
 	};
 };
 
@@ -60,7 +60,21 @@ static int opt_bool_parse(struct config_opt *co, char *str, size_t len)
 		return -1;
 	}
 
-	co->val_int++;
+	co->val_long++;
+
+	return 0;
+}
+
+static int opt_long_parse(struct config_opt *co, char *str, size_t len)
+{
+	size_t vlen = lrc_strlen(co->name) + 1;
+
+	if (len < vlen) {
+		log_print(LL_OERR, "invalid %.*s option\n", len, str);
+		return -1;
+	}
+
+	co->val_long = strtoul(str + lrc_strlen(co->name) + 1, NULL, 0);
 
 	return 0;
 }
@@ -75,19 +89,25 @@ static int opt_no_crash_parse(struct config_opt *co, char *str, size_t len)
 	return opt_bool_parse(co, str, len);
 }
 
-static struct config_opt opts[] = {
-	[CONF_LOGDIR]  = { "logdir",   0, opt_logdir_parse },
-	[CONF_NOCRASH] = { "no-crash", 0, opt_no_crash_parse },
-};
-
-int lrc_conf_int(int what)
+static int opt_skip_calls_parse(struct config_opt *co, char *str, size_t len)
 {
-	return opts[what].val_int;
+	return opt_long_parse(co, str, len);
 }
+
+static struct config_opt opts[] = {
+	[CONF_LOGDIR]    = { "logdir",     0, opt_logdir_parse },
+	[CONF_NOCRASH]   = { "no-crash",   0, opt_no_crash_parse },
+	[CONF_SKIPCALLS] = { "skip-calls", 0, opt_skip_calls_parse },
+};
 
 char *lrc_conf_str(int what)
 {
 	return opts[what].val_str;
+}
+
+int lrc_conf_long(int what)
+{
+	return opts[what].val_long;
 }
 
 void lrc_configure(void)
@@ -95,7 +115,7 @@ void lrc_configure(void)
 	char *inbuf, *s, *e;
 
 	inbuf = lrc_getenv(LRC_CONFIG_ENV);
-	if (!inbuf) {
+	if (!inbuf || !inbuf[0]) {
 		log_print(LL_OINFO, "no config options supplied\n");
 		return;
 	}

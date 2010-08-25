@@ -26,12 +26,13 @@
 #endif
 
 void lrc_configure(void);
-int lrc_conf_int(int what);
 char *lrc_conf_str(int what);
+int lrc_conf_long(int what);
 
 enum {
 	CONF_LOGDIR = 0,
 	CONF_NOCRASH,
+	CONF_SKIPCALLS,
 };
 
 #endif /* RANDOMCRASH_CONFIG_H */

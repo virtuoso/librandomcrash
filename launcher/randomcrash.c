@@ -48,13 +48,14 @@ static const struct option options[] = {
 	{ "help",	0, 0, 'h' },
 	{ "no-crash",	0, 0, 'n' },
 	{ "logdir",	1, 0, 'L' },
+	{ "skip-calls",	1, 0, 's' },
 #ifdef DEVELOPER_MODE
 	{ "local",	0, 0, 'l' },
 #endif
 	{ NULL,		0, 0, 0   },
 };
 
-static const char *optstr = "hnL:"
+static const char *optstr = "hnL:s:"
 #ifdef DEVELOPER_MODE
 	"l"
 #endif
@@ -64,6 +65,7 @@ static const char *optdesc[] = {
 	"display this help text",
 	"don't apply nastiness, just watch",
 	"specify directory to be used for logging",
+	"number of calls to skip before starting to intercept",
 #ifdef DEVELOPER_MODE
 	"run local build of the library instead",
 #endif
@@ -143,6 +145,8 @@ int main(int argc, char *const argv[])
 	char *lrc_opts = NULL;
 	int no_crash = 0;
 	char *logdir = NULL;
+    unsigned long int skip_calls = 0;
+    char buf[BUFSIZ];
 
 	snprintf(lrc_path, PATH_MAX, "%s/lib/librandomcrash.so.%s",
 		 PKG_PREFIX, my_ver);
@@ -162,6 +166,10 @@ int main(int argc, char *const argv[])
 
 			case 'L':
 				logdir = xstrdup(optarg);
+				break;
+
+			case 's':
+				skip_calls = strtoul(optarg, NULL, 0);
 				break;
 
 #ifdef DEVELOPER_MODE
@@ -198,6 +206,11 @@ int main(int argc, char *const argv[])
 
 	if (logdir)
 		lrc_opts = append_strings(lrc_opts, 3, "logdir=", logdir, ":");
+
+	if (skip_calls) {
+        snprintf(buf, BUFSIZ, "%lu", skip_calls);
+		lrc_opts = append_strings(lrc_opts, 3, "skip-calls=", buf, ":");
+    }
 
 	setenv(LRC_CONFIG_ENV, lrc_opts ? lrc_opts : "", 1);
 

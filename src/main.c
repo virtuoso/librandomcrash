@@ -38,6 +38,7 @@ static const char my_name[] = PACKAGE;
 static const char my_ver[] = VERSION;
 
 static int lrc_up;
+static int lrc_configured = 0;
 
 bool lrc_is_up(void)
 {
@@ -52,15 +53,20 @@ extern struct handler *handlers[];
 
 void __ctor lrc_init(void);
 
+unsigned long int lrc_callno = 0;
+
 int __lrc_call_entry(struct override *o, void *ctxp)
 {
+    if (lrc_configured)
+        lrc_callno++;
+
 	struct handler *queue[MAXQUEUE];
 	int i, qlast = 0;
 
 	if (!lrc_up)
 		lrc_init();
 
-	debug("%s() entry\n", o->name);
+	debug("%s() entry, call nr: %lu\n", o->name, lrc_callno);
 
 	/* first, run the first enabled accounting handler for this call */
 	for (i = 0; acct_handlers[i]; i++)
@@ -70,7 +76,12 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 		    !acct_handlers[i]->probe_func(o, ctxp))
 			break;
 
-	if (!lrc_conf_int(CONF_NOCRASH)) {
+	if (!lrc_conf_long(CONF_NOCRASH)) {
+        if (lrc_callno <= lrc_conf_long(CONF_SKIPCALLS)) {
+            debug("%s() skipping\n", o->name);
+            return 0;
+        }
+
 		for (i = 0; handlers[i] && qlast < MAXQUEUE; i++)
 			if (!lrc_strcmp(handlers[i]->fn_name, o->name) &&
 			    handlers[i]->enabled &&
@@ -127,6 +138,8 @@ void __ctor lrc_init(void)
 
 	lrc_initmem();
 	lrc_configure();
+
+    lrc_configured++;
 }
 
 void __dtor lrc_done(void)

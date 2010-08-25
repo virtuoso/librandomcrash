@@ -18,6 +18,8 @@ supported options:
   - no-check -- only do statistics for this run; don't be nasty;
   - logdir=PATH -- location of the log files storage (not yet supported
     by the logging code).
+  - skip-calls=N -- number (N) of calls to skip before starting to
+    intercept
 
 lrc development:
 
