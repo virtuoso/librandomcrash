@@ -38,7 +38,7 @@ static const char my_name[] = PACKAGE;
 static const char my_ver[] = VERSION;
 
 static int lrc_up;
-static int lrc_configured = 0;
+static int lrc_configured;
 
 bool lrc_is_up(void)
 {
