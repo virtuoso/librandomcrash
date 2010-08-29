@@ -3,6 +3,6 @@
 
 int main()
 {
-    DIR *d = opendir("/");
-    return !!d;
+	DIR *d = opendir("/");
+	return !!d;
 }

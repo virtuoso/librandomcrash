@@ -57,11 +57,11 @@ unsigned long int lrc_callno = 0;
 
 int __lrc_call_entry(struct override *o, void *ctxp)
 {
-    if (lrc_configured)
-        lrc_callno++;
-
 	struct handler *queue[MAXQUEUE];
 	int i, qlast = 0;
+
+	if (lrc_configured)
+		lrc_callno++;
 
 	if (!lrc_up)
 		lrc_init();
@@ -77,10 +77,10 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 			break;
 
 	if (!lrc_conf_long(CONF_NOCRASH)) {
-        if (lrc_callno <= lrc_conf_long(CONF_SKIPCALLS)) {
-            debug("%s() skipping\n", o->name);
-            return 0;
-        }
+		if (lrc_callno <= lrc_conf_long(CONF_SKIPCALLS)) {
+			debug("%s() skipping\n", o->name);
+			return 0;
+		}
 
 		for (i = 0; handlers[i] && qlast < MAXQUEUE; i++)
 			if (!lrc_strcmp(handlers[i]->fn_name, o->name) &&
@@ -139,7 +139,7 @@ void __ctor lrc_init(void)
 	lrc_initmem();
 	lrc_configure();
 
-    lrc_configured++;
+	lrc_configured++;
 }
 
 void __dtor lrc_done(void)
