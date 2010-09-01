@@ -131,6 +131,8 @@ function flush_function()
     printf "%s%s __lrc_orig_%s(%s);\n\n", \
 	fn_tail, fn_typename, fn_name, fn_paramlist >"symbols.h"
 
+    printf "%s%s __lrc_orig_%s(%s) {}\n", fn_tail, fn_typename, fn_name, fn_paramlist >"dummies.c"
+
     fn_paramlist = ""
     fn_paramlist_call = ""
     fn_nargs = 0
