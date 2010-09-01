@@ -69,7 +69,7 @@ static inline int lrc_strncmp(const char *s1, const char *s2, size_t n)
 
 	for (i = 0; i < n && s1[i] && s1[i] == s2[i]; i++);
 
-	return s1[i] - s2[i];
+	return i == n ? 0 : s1[i] - s2[i];
 }
 
 static inline char *lrc_strchrnul(const char *s, int c)
