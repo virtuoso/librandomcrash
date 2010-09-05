@@ -131,7 +131,19 @@ function flush_function()
     printf "%s%s __lrc_orig_%s(%s);\n\n", \
 	fn_tail, fn_typename, fn_name, fn_paramlist >"symbols.h"
 
+    # __lrc_orig_*_is_callable() will return true if the corresponding
+    # original libc function has been loaded
+    printf "bool __lrc_orig_%s_is_callable(void)\n{\n\treturn !!__lrc_call_%s.orig_func;\n}\n\n", \
+	fn_name, fn_name
+
+    printf "bool __lrc_orig_%s_is_callable(void);\n\n", \
+	fn_name >"symbols.h"
+
+    # the dummy function for testcases
     printf "%s%s __lrc_orig_%s(%s) {}\n", fn_tail, fn_typename, fn_name, fn_paramlist >"dummies.c"
+
+    printf "bool __lrc_orig_%s_is_callable(void)\n{\n\treturn false;\n}\n", \
+	fn_name >"dummies.c"
 
     fn_paramlist = ""
     fn_paramlist_call = ""
