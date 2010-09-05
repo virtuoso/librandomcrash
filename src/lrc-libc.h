@@ -154,5 +154,29 @@ static inline ssize_t lrc_read(int fd, void *buf, size_t count)
 	return 0xdeadbeef;
 }
 
+/*
+ * Signal-related stuff follows
+ */
+
+static inline int lrc_sigemptyset(sigset_t *set)
+{
+	if (__lrc_orig_sigemptyset_is_callable())
+		return __lrc_orig_sigemptyset(set);
+
+	panic("lrc_sigemptyset called, but no libc function available.\n");
+
+	return 0xdeadbeef;
+}
+
+static inline int lrc_sigfillset(sigset_t *set)
+{
+	if (__lrc_orig_sigfillset_is_callable())
+		return __lrc_orig_sigfillset(set);
+
+	panic("lrc_sigfillset called, but no libc function available.\n");
+
+	return 0xdeadbeef;
+}
+
 #endif /* RANDOMCRASH_LIBC_H */
 

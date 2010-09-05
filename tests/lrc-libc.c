@@ -26,8 +26,18 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <dirent.h>
+#include <signal.h>
 
 #include "../src/dummies.c"
+
+/*
+ * just print the message, the function that panic()ed should return
+ * garbage anyway
+ */
+void panic(const char *msg)
+{
+	fputs(msg, stderr);
+}
 
 #include "../src/lrc-libc.h"
 

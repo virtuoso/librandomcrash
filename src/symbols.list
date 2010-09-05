@@ -115,3 +115,11 @@ void * memcpy
 	size_t n
 -- CRASH_COND(INVALID_PTR(dest))
 -- CRASH_COND(INVALID_PTR(src))
+
+int sigemptyset
+	sigset_t * set
+-- CRASH_COND(INVALID_PTR(set))
+
+int sigfillset
+	sigset_t * set
+-- CRASH_COND(INVALID_PTR(set))
