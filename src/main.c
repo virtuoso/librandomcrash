@@ -50,7 +50,7 @@ static __thread sigset_t lrc_saved_sigset;
 /*
  * Block all signals and save previous signal mask
  */
-void lrc_sigblock(void)
+static void lrc_sigblock(void)
 {
 	sigset_t set;
 
@@ -63,7 +63,7 @@ void lrc_sigblock(void)
 /*
  * Restore signal mask
  */
-void lrc_sigunblock(void)
+static void lrc_sigunblock(void)
 {
 	sigprocmask(SIG_SETMASK, &lrc_saved_sigset, NULL);
 	lrc_sigemptyset(&lrc_saved_sigset);
@@ -72,14 +72,14 @@ void lrc_sigunblock(void)
 /*
  * Indicate that the execution is within lrc
  */
-void lrc_enter(void)
+static void lrc_enter(void)
 {
 	lrc_sigblock();
 	lrc_depth++;
 	lrc_sigunblock();
 }
 
-bool lrc_try_enter(void)
+static bool lrc_try_enter(void)
 {
 	lrc_sigblock();
 
@@ -94,7 +94,7 @@ bool lrc_try_enter(void)
 	return true;
 }
 
-void lrc_leave(void)
+static void lrc_leave(void)
 {
 	if (!lrc_leave)
 		panic("inconsistent lrc depth");
@@ -115,7 +115,7 @@ extern struct handler *handlers[];
 
 void __ctor lrc_init(void);
 
-unsigned long int lrc_callno = 0;
+static unsigned long int lrc_callno = 0;
 
 int __lrc_call_entry(struct override *o, void *ctxp)
 {
