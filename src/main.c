@@ -56,8 +56,6 @@ static void lrc_sigblock(void)
 
 	lrc_sigfillset(&set);
 	sigprocmask(SIG_BLOCK, &set, &lrc_saved_sigset);
-
-	return sigset;
 }
 
 /*
