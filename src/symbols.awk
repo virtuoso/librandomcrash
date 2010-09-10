@@ -123,7 +123,7 @@ function flush_function()
 	fn_tail = fn_tail " "
 
     # the override function
-    printf "%s%s(%s)\n{\n%s\n}\n\n", fn_tail, fn_def, fn_paramlist, fn_body
+    printf "EXPORT %s%s(%s)\n{\n%s\n}\n\n", fn_tail, fn_def, fn_paramlist, fn_body
 
     # the original function
     printf "%s%s __lrc_orig_%s(%s)\n{\n%s\treturn ((__lrc_%s_fn)__lrc_call_%s.orig_func)(%s);\n}\n\n", \

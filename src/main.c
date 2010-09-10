@@ -187,7 +187,7 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 	lrc_leave();
 }
 
-void __ctor lrc_init(void)
+EXPORT void __ctor lrc_init(void)
 {
 	int i;
 
@@ -213,7 +213,7 @@ void __ctor lrc_init(void)
 	lrc_leave();
 }
 
-void __dtor lrc_done(void)
+EXPORT void __dtor lrc_done(void)
 {
 	int i;
 
