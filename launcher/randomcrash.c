@@ -27,6 +27,9 @@
 #include <getopt.h>
 #include <stdarg.h>
 #include <sys/poll.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <signal.h>
 
 #include "proto.h"
 
@@ -37,6 +40,16 @@ static char lrc_path[PATH_MAX];
 
 #ifdef __LRC_DEBUG__
 #define DEVELOPER_MODE
+
+#include "../src/backtrace.c"
+
+void sigabrt_dumper(int sig)
+{
+	int i;
+
+	fprintf(stderr, "signal %d received\n", sig);
+	lrc_dump_trace(2);
+}
 #endif
 
 #ifndef LRC_CONFIG_ENV
@@ -73,6 +86,12 @@ static const char *optdesc[] = {
 	"run local build of the library instead",
 #endif
 };
+
+#ifdef DEVELOPER_MODE
+#define trace(n, fmt, args ...) fprintf(stderr, "> " #n " <: " fmt, ## args)
+#else
+#define trace(n, fmt, args ...)
+#endif
 
 static void usage(void)
 {
@@ -141,93 +160,145 @@ static char *append_strings(char *string, int n, ...)
 }
 
 /* IPC */
-int inbound_fd[2];
-int outbound_fd[2];
+int inbound_fd;
+int outbound_fd;
 
 struct child {
 	pid_t		pid, ppid;
-	int		inbound_fd[2];
-	int		outbound_fd[2];
-	struct child	*prev, *next;
+	int		fd;
+	int		remote_fd;
+	int		state;
 };
 
-static struct child *children;
-static int nchildren;
-static struct pollfd *fds;
+enum {
+	CS_NEW = 0,	/* created */
+	CS_RUNNING,	/* initialized */
+	CS_EXITING,	/* about to exit */
+	CS_DONE,
+};
+
+static struct child **children;	/* children array */
+static int nchildren;		/* array size */
+/*
+ * maximum for the nchildren; since children can do all sorts
+ * of setuid things, RLIMIT_NPROC is not really applicable here
+ */
+#define CHILDREN_MAX INT_MAX
+
+static struct pollfd *fds;	/* main loop descriptors */
 
 static void children2fds(void)
 {
-	struct child *child = children;
-	int i = 0;
+	int i;
 
-	fds = realloc(fds, sizeof(*fds) * nchildren);
-	fds[0].fd = inbound_fd[0];
+	fds = realloc(fds, sizeof(*fds) * (nchildren + 1));
+	fds[0].fd = inbound_fd;
 	fds[0].events = POLLIN;
 
-	for (i = 1; i < nchildren + 1; i++) {
-		fds[i].fd = child->inbound_fd[0];
-		fds[i].events = POLLIN;
-		child = child->next;
+	for (i = 0; i < nchildren; i++) {
+		fds[i + 1].fd = children[i]->fd;
+		fds[i + 1].events = POLLIN;
 	}
-}
-
-static inline void child_add_tail(struct child *child)
-{
-	if (children) {
-		child->next = children;
-		child->prev = children->prev;
-		children->prev = child;
-	} else
-		children = child;
 }
 
 struct child *child_new(pid_t pid, pid_t ppid)
 {
 	struct child *child;
+	int fdsv[2], i;
+
+	if (nchildren == CHILDREN_MAX) {
+		trace(0, "too many child processes\n");
+		/* XXX */
+		return;
+	}
 
 	child = xmalloc(sizeof(*child));
 	child->pid = pid;
 	child->ppid = ppid;
-	child->next = child->prev = child;
-	child_add_tail(child);
 
-	pipe(child->inbound_fd);
-	pipe(child->outbound_fd);
+	i = socketpair(AF_UNIX, SOCK_STREAM, 0, fdsv);
+	if (i) {
+		fprintf(stderr, "Failed to create a pipe\n");
+		exit(EXIT_FAILURE);
+	}
 
-	nchildren++;
+	child->fd = fdsv[0];
+	child->remote_fd = fdsv[1];
+	child->state = CS_NEW;
+
+	children = realloc(children, sizeof(struct child *) * ++nchildren);
+	children[nchildren - 1] = child;
 
 	children2fds();
 
 	return child;
 }
 
-struct child *child_find_by_pid(pid_t pid)
+int child_find_idx_by_pid(pid_t pid)
 {
-	struct child *child = children;
-	int i = 0;
+	int i;
 
-	for (i = 1; i < nchildren + 1; i++) {
-		if (child->pid == pid)
-			return child;
-		child = child->next;
+	for (i = 0; i < nchildren; i++) {
+		if (children[i]->pid == pid)
+			return i;
 	}
 
-	return NULL;
+	return -1;
 }
 
-void child_free(pid_t pid)
+struct child *child_find_by_pid(pid_t pid)
 {
-	struct child *child;
+	int idx = child_find_idx_by_pid(pid);
 
-	child = child_find_by_pid(pid);
+	return idx >= 0 ? children[idx] : NULL;
+}
+
+void child_remove_by_idx(int idx)
+{
+	struct child **new_array;
+
+	new_array = xmalloc(nchildren - 1);
+	memcpy(new_array, children, idx * sizeof(struct child *));
+	memcpy(new_array + idx, children + idx + 1,
+	       (nchildren - idx - 1) * sizeof(struct child *));
+
+	free(children);
+	children = new_array;
+	nchildren--;
+}
+
+void child_free(struct child *child)
+{
 	if (!child) /* XXX: report */
 		return;
 
-	close(child->inbound_fd[0]);
-	close(child->outbound_fd[1]);
+	if (child->state != CS_EXITING)
+		fprintf(stderr, "child %d is in the wrong state %d\n",
+			child->state);
+	close(child->fd);
+	close(child->remote_fd);
+	free(child);
+}
 
-	child->next->prev = child->prev;
-	child->prev->next = child->next;
+void children_wait(void)
+{
+	int i = 0, ret;
+
+	while (i < nchildren) {
+		if (waitpid(children[i]->pid, &ret, WNOHANG)) {
+			struct child *child = children[i];
+
+			trace(0, "child %d exited with %d code\n",
+			      child->pid, ret);
+			child_remove_by_idx(i);
+			child_free(child);
+
+			if (i < nchildren)
+				continue;
+		}
+
+		i++;
+	}
 }
 
 /* main loop */
@@ -237,35 +308,61 @@ int child_started(pid_t pid)
 	struct lrc_message *m;
 
 	for (;;) {
-		ret = poll(fds, nchildren + 1, 0);
+		ret = poll(fds, nchildren + 1, 1);
 		if (ret > 0) {
 			int i;
 			for (i = 0; i < nchildren + 1 && ret; i++)
 				if (fds[i].revents & POLLIN) {
 					struct child *child;
+					int vec[2];
 
 					ret--;
 					m = lrc_message_recv(fds[ret].fd);
-					fprintf(stderr, ">>> %d\n", m->pid);
-					child = child_new(m->pid, 0);
-					free(m);
+					if (m->type == MT_HANDSHAKE) {
+						child = child_find_by_pid(m->pid);
+						if (child) {
+							trace(0, "%d already exists\n", m->pid);
+							free(m);
+							continue;
+						}
 
-					m = xmalloc(sizeof(*m) + sizeof(int) * 2);
+						fprintf(stderr, ">>> %d\n", m->pid);
+						child = child_new(m->pid, 0);
+						free(m);
 
-					lrc_message_init(m);
-					m->length = sizeof(int) * 2;
-					memcpy(&m->payload.response.buf[0], &child->inbound_fd[1], sizeof(int));
-					memcpy(&m->payload.response.buf[4], &child->outbound_fd[0], sizeof(int));
-					m->payload.response.code = 1; /* XXX */
-					m->type = MT_RESPONSE;
-					lrc_message_send(outbound_fd[1], m);
-					free(m);
+						m = xmalloc(sizeof(*m) + sizeof(int) * 2);
+
+						lrc_message_init(m);
+						m->length = sizeof(int) * 2;
+						vec[0] = child->fd;
+						vec[1] = child->remote_fd;
+						trace(0, "%d, %d\n", vec[0], vec[1]);
+						memcpy(&m->payload.response.buf, vec, sizeof(int) * 2);
+
+						m->payload.response.code = 1; /* XXX */
+						m->type = MT_RESPONSE;
+						lrc_message_send(fds[ret].fd, m);
+						free(m);
+					} else if (m->type == MT_FORK) {
+						child = child_find_by_pid(m->payload.fork.child);
+						if (child) {
+							trace(0, "%d already exists\n",
+							      m->payload.fork.child);
+							free(m);
+							continue;
+						}
+						fprintf(stderr, ">>> %d FORKED %d\n",
+							m->pid, m->payload.fork.child);
+						child = child_new(m->payload.fork.child, 0);
+						free(m);
+					}
 				}
 		}
 
-		/* XXX */
-		if (waitpid(-1, &ret, WNOHANG))
-			return ret;
+		children_wait();
+
+		if (!nchildren)
+			break;
 	}
 
 	return 0;
@@ -286,19 +383,9 @@ int spawn(const char *cmd, char *const argv[])
 
 	pid = fork();
 	if (pid) {
-		close(inbound_fd[1]);
-		close(outbound_fd[0]);
 		return child_started(pid);
 		//waitpid(-1, &ret, 0); /* <- fall through */
 	} else {
-		close(inbound_fd[0]);
-		close(outbound_fd[1]);
-		/*close(1);
-		  close(2);
-
-		  dup2(fileno(OUT[LOG]), 1);
-		  dup2(fileno(OUT[LOG]), 2);*/
-
 		ret = execve(cmd, argv, environ);
 		if (ret) {
 			fprintf(stderr, "exec %s failed\n", cmd);
@@ -325,11 +412,16 @@ int main(int argc, char *const argv[])
 	char **new_argv;
 	char *executable;
 	char *lrc_opts = NULL;
-	char *ipc_fdin = NULL;
+	char ipc_fdin[BUFSIZ];
 	int no_crash = 0;
 	char *logdir = NULL;
 	unsigned long int skip_calls = 0;
+	int svec[2];
 	char buf[BUFSIZ];
+
+#ifdef DEVELOPER_MODE
+	signal(SIGABRT, sigabrt_dumper);
+#endif
 
 	snprintf(lrc_path, PATH_MAX, "%s/lib/librandomcrash.so.%s",
 		 PKG_PREFIX, my_ver);
@@ -375,7 +467,7 @@ int main(int argc, char *const argv[])
 	}
 
 	executable = argv[optind++];
-	new_argv = xmalloc(argc - optind + 1);
+	new_argv = xmalloc((argc - optind + 2) * sizeof(char *));
 	new_argv[0] = executable;
 
 	for (i = 1; optind < argc; i++, optind++)
@@ -385,25 +477,17 @@ int main(int argc, char *const argv[])
 	setenv("LD_PRELOAD", lrc_path, 1);
 
 	/* IPC init */
-	i = pipe(inbound_fd);
+	i = socketpair(AF_UNIX, SOCK_STREAM, 0, svec);
 	if (i) {
 		fprintf(stderr, "Failed to create a pipe\n");
 		exit(EXIT_FAILURE);
 	}
 
-	asprintf(&ipc_fdin, "fdout=%d:", inbound_fd[1]);
-	lrc_opts = append_string(lrc_opts, ipc_fdin);
-	free(ipc_fdin);
+	inbound_fd = svec[0];
+	outbound_fd = svec[1];
 
-	i = pipe(outbound_fd);
-	if (i) {
-		fprintf(stderr, "Failed to create a pipe\n");
-		exit(EXIT_FAILURE);
-	}
-
-	asprintf(&ipc_fdin, "fdin=%d:", outbound_fd[0]);
+	snprintf(ipc_fdin, BUFSIZ, "fd=%d:", outbound_fd);
 	lrc_opts = append_string(lrc_opts, ipc_fdin);
-	free(ipc_fdin);
 
 	if (no_crash)
 		lrc_opts = append_string(lrc_opts, "no-crash:");

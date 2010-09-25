@@ -12,6 +12,7 @@ librandomcrash_la_SOURCES =	\
 	symbols.c		\
 	main.c			\
 	handlers.c		\
+	backtrace.c		\
 	log.c			\
 	memory.c		\
 	conf.c			\
@@ -30,6 +31,7 @@ lrc_test_SOURCES =		\
 	symbols.c		\
 	main.c			\
 	handlers.c		\
+	backtrace.c		\
 	log.c			\
 	memory.c		\
 	conf.c			\

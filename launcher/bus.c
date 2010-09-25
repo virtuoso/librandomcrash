@@ -11,6 +11,11 @@
 #define lrc_read read
 #define lrc_alloc malloc
 #define lrc_memcpy memcpy
+#ifdef __LRC_DEBUG__
+#include <signal.h>
+#define panic(x) do { sigabrt_dumper(SIGABRT); abort(); } while (0)
+#else
 #define panic(x) abort()
+#endif
 
 #include "../common/bus.c"

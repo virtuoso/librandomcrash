@@ -23,6 +23,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
 #include <limits.h>
 #include <stdarg.h>
 #include "override.h"
@@ -40,15 +41,26 @@ static int log_noutputs;
 
 char log_dir[] = "/tmp";
 
+void lrc_dump_trace(int fd);
+
 void __noret panic(const char *msg)
 {
 	int i;
 
-	for (i = 0; i < log_noutputs; i++)
+	for (i = 0; i < log_noutputs; i++) {
 		fprintf(log_output[i].file, "PANIC: %s", msg);
+		lrc_dump_trace(fileno(log_output[0].file));
+	}
 
 	abort();
 }
+
+#ifdef __LRC_DEBUG__
+void sigabrt_dumper(int sig)
+{
+	panic("Signal received\n");
+}
+#endif
 
 static int log_add_output(FILE *file, char *path)
 {
@@ -125,6 +137,8 @@ void log_init(void)
 	r = log_add_output(stderr, "stderr");
 	if (r == -1)
 		goto fail;
+
+	signal(SIGABRT, sigabrt_dumper);
 #endif
 
 	return;

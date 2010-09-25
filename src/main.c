@@ -112,6 +112,36 @@ extern struct handler *handlers[];
 
 #define MAXQUEUE 32
 
+struct lrc_bus lrc_bus;
+
+void lrc_initbus(void)
+{
+	struct lrc_message m, *r;
+
+	if (!lrc_conf_long(CONF_FD))
+		return;
+
+	lrc_bus.fd_in = lrc_bus.fd_out = lrc_conf_long(CONF_FD);
+
+	lrc_message_init(&m);
+	m.payload.handshake.flags = 0xabbadead; /* XXX */
+	m.type = MT_HANDSHAKE;
+	lrc_message_send(lrc_bus.fd_out, &m);
+
+	r = lrc_message_recv(lrc_bus.fd_in);
+	if (r->type == MT_RESPONSE) {
+		log_print(LL_OINFO, "connected to launcher, fds: %d<>%d\n",
+			  (int)r->payload.response.buf[0], (int)r->payload.response.buf[4]);
+		lrc_bus.connected = 1;
+	}
+}
+
+void lrc_dobus(void)
+{
+	if (!lrc_bus.connected)
+		return;
+}
+
 static unsigned long int lrc_callno = 0;
 
 int __lrc_call_entry(struct override *o, void *ctxp)
@@ -176,6 +206,19 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 	debug("%s() exit, ret=%d\n", o->name,
 		  retp ? *(int *)retp : 0);
 
+	/* fork is a special case */
+	if (!lrc_strcmp(o->name, "fork") && *(pid_t *)retp > 0) {
+		struct lrc_message m;
+
+		log_print(LL_OINFO, "FORKED! %d\n", *(pid_t *)retp);
+		lrc_message_init(&m);
+		m.type = MT_FORK;
+		m.payload.fork.child = *(pid_t *)retp;
+		lrc_message_send(lrc_bus.fd_out, &m);
+	} else if (!lrc_strcmp(o->name, "fork") && *(pid_t *)retp == 0) {
+		lrc_initbus();
+	}
+
 	if (callctx->acct_handler && callctx->acct_handler->exit_func)
 		callctx->acct_handler->exit_func(o, ctxp, retp);
 
@@ -185,37 +228,6 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 }
 
 void __ctor lrc_init(void);
-
-struct lrc_bus lrc_bus;
-
-void lrc_initbus(void)
-{
-	struct lrc_message m, *r;
-
-	if (!lrc_conf_long(CONF_FDIN) || !lrc_conf_long(CONF_FDOUT))
-		return;
-
-	lrc_bus.fd_in = lrc_conf_long(CONF_FDIN);
-	lrc_bus.fd_out = lrc_conf_long(CONF_FDOUT);
-
-	lrc_message_init(&m);
-	m.payload.handshake.flags = 0xabbadead; /* XXX */
-	m.type = MT_HANDSHAKE;
-	lrc_message_send(lrc_bus.fd_out, &m);
-
-	r = lrc_message_recv(lrc_bus.fd_in);
-	if (r->type == MT_RESPONSE) {
-		log_print(LL_OINFO, "connected to launcher, fds: %d<>%d\n",
-			  (int)r->payload.response.buf[0], (int)r->payload.response.buf[4]);
-		lrc_bus.connected = 1;
-	}
-}
-
-void lrc_dobus(void)
-{
-	if (!lrc_bus.connected)
-		return;
-}
 
 EXPORT void __ctor lrc_init(void)
 {
@@ -238,10 +250,6 @@ EXPORT void __ctor lrc_init(void)
 
 	lrc_initmem();
 	lrc_configure();
-
-	if (lrc_conf_long(CONF_FDOUT)) {
-		dprintf(lrc_conf_long(CONF_FDOUT), "Watup, %d\n", getpid());
-	}
 
 	lrc_initbus();
 

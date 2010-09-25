@@ -5,6 +5,7 @@ enum {
 	MT_NOOP = 0,
 	MT_HANDSHAKE,
 	MT_RESPONSE,
+	MT_FORK,
 };
 
 struct lrc_message {
@@ -19,6 +20,9 @@ struct lrc_message {
 			int	code;
 			char	buf[0];
 		} response;
+		struct {
+			pid_t	child;
+		} fork;
 	} payload;
 };
 
