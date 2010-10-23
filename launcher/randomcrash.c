@@ -31,6 +31,7 @@
 #include <sys/socket.h>
 #include <signal.h>
 
+#include "util.h"
 #include "proto.h"
 
 static const char my_name[] = "randomcrash";
@@ -39,7 +40,6 @@ static const char my_ver[] = VERSION;
 static char lrc_path[PATH_MAX];
 
 #ifdef __LRC_DEBUG__
-#define DEVELOPER_MODE
 
 #include "../src/backtrace.c"
 
@@ -50,14 +50,6 @@ void sigabrt_dumper(int sig)
 	fprintf(stderr, "signal %d received\n", sig);
 	lrc_dump_trace(2);
 }
-#endif
-
-#ifndef LRC_CONFIG_ENV
-#define LRC_CONFIG_ENV "LRC_CONFIG"
-#endif
-
-#ifndef LRC_SRC_BASE_DIR
-#define LRC_SRC_BASE_DIR get_current_dir_name()
 #endif
 
 static const struct option options[] = {
@@ -87,12 +79,6 @@ static const char *optdesc[] = {
 #endif
 };
 
-#ifdef DEVELOPER_MODE
-#define trace(n, fmt, args ...) fprintf(stderr, "> " #n " <: " fmt, ## args)
-#else
-#define trace(n, fmt, args ...)
-#endif
-
 static void usage(void)
 {
 	int i;
@@ -103,60 +89,6 @@ static void usage(void)
 	for (i = 0; options[i].name; i++)
 		fprintf(stderr, "-%c, --%s\n\t%s\n",
 			options[i].val, options[i].name, optdesc[i]);
-}
-
-static inline void *xmalloc(size_t len)
-{
-	void *x = malloc(len);
-
-	if (!x) {
-		fprintf(stderr, "We're short on memory\n");
-		exit(EXIT_FAILURE);
-	}
-
-	return x;
-}
-
-static inline char *xstrdup(const char *str)
-{
-	void *x = strdup(str);
-
-	if (!x) {
-		fprintf(stderr, "We're short on memory\n");
-		exit(EXIT_FAILURE);
-	}
-
-	return x;
-}
-
-static char *append_string(char *string, char *data)
-{
-	char *s = string;
-	int sz, len;
-
-	sz = string ? strlen(string) : 0;
-	len = strlen(data);
-	s = realloc(s, sz + len + 1);
-	if (!s)
-		exit(EXIT_FAILURE);
-	memcpy(s + sz, data, len);
-	s[sz + len] = 0;
-
-	return s;
-}
-
-static char *append_strings(char *string, int n, ...)
-{
-	va_list ap;
-	int i;
-	char *s = string;
-
-	va_start(ap, n);
-	for (i = 0; i < n; i++)
-		s = append_string(s, va_arg(ap, char *));
-	va_end(ap);
-
-	return s;
 }
 
 /* IPC */
@@ -197,7 +129,7 @@ static void children2fds(void)
 
 	for (i = 0; i < nchildren; i++) {
 		fds[i + 1].fd = children[i]->fd;
-		fds[i + 1].events = POLLIN;
+		fds[i + 1].events = POLLIN | POLLHUP;
 	}
 }
 
@@ -257,7 +189,7 @@ void child_remove_by_idx(int idx)
 {
 	struct child **new_array;
 
-	new_array = xmalloc(nchildren - 1);
+	new_array = xmalloc((nchildren - 1) * sizeof(struct child *));
 	memcpy(new_array, children, idx * sizeof(struct child *));
 	memcpy(new_array + idx, children + idx + 1,
 	       (nchildren - idx - 1) * sizeof(struct child *));
@@ -274,22 +206,24 @@ void child_free(struct child *child)
 
 	if (child->state != CS_EXITING)
 		fprintf(stderr, "child %d is in the wrong state %d\n",
-			child->state);
+			child->pid, child->state);
 	close(child->fd);
 	close(child->remote_fd);
 	free(child);
 }
 
-void children_wait(void)
+int children_wait(pid_t pid)
 {
-	int i = 0, ret;
+	int i, ret, mret = 0;
 
-	while (i < nchildren) {
-		if (waitpid(children[i]->pid, &ret, WNOHANG)) {
+	for (i = 0; i < nchildren; i++)
+		if (children[i]->pid == waitpid(children[i]->pid, &ret, WNOHANG)) {
 			struct child *child = children[i];
 
+			if (child->pid == pid)
+				mret = WEXITSTATUS(ret);
 			trace(0, "child %d exited with %d code\n",
-			      child->pid, ret);
+			      child->pid, mret);
 			child_remove_by_idx(i);
 			child_free(child);
 
@@ -297,9 +231,93 @@ void children_wait(void)
 				continue;
 		}
 
-		i++;
-	}
+	return mret;
 }
+
+void children_list(void)
+{
+	int i;
+	return;
+	trace(1, "nchildren=%d\n", nchildren);
+	for (i = 0; i < nchildren; i++)
+		trace(1, "[child %d: state %d]\n",
+		      children[i]->pid, children[i]->state);
+	trace(1, "\n");
+}
+
+static int msg_handler_handshake(struct lrc_message *m, int fd)
+{
+	struct child *child;
+	int vec[2];
+
+	child = child_find_by_pid(m->pid);
+	if (child) {
+		trace(0, "%d already exists\n", m->pid);
+		free(m);
+		return -1;
+	}
+
+	fprintf(stderr, ">>> %d\n", m->pid);
+	child = child_new(m->pid, 0);
+	free(m);
+
+	m = xmalloc(sizeof(*m) + sizeof(int) * 2);
+
+	lrc_message_init(m);
+	m->length = sizeof(int) * 2;
+	vec[0] = child->fd;
+	vec[1] = child->remote_fd;
+	trace(0, "%d, %d\n", vec[0], vec[1]);
+	memcpy(&m->payload.response.buf, vec, sizeof(int) * 2);
+
+	m->payload.response.code = 1; /* XXX */
+	m->type = MT_RESPONSE;
+	lrc_message_send(fd, m);
+	free(m);
+
+	return 0;
+}
+
+static int msg_handler_fork(struct lrc_message *m, int fd)
+{
+	struct child *child;
+
+	child = child_find_by_pid(m->payload.fork.child);
+	if (child) {
+		trace(0, "%d already exists\n",
+		      m->payload.fork.child);
+		free(m);
+		return -1;
+	}
+	fprintf(stderr, ">>> %d FORKED %d\n",
+		m->pid, m->payload.fork.child);
+	child = child_new(m->payload.fork.child, 0);
+	free(m);
+
+	return 0;
+}
+
+static int msg_handler_logmsg(struct lrc_message *m, int fd)
+{
+	fprintf(stderr, "[%d:%d] %s", m->pid, m->payload.logmsg.level,
+		m->payload.logmsg.message);
+	return 0;
+}
+
+static int msg_handler_exit(struct lrc_message *m, int fd)
+{
+	trace(0, "child %d is exiting with %d code\n",
+	      m->pid, m->payload.exit.code);
+	return 0;
+}
+
+typedef int (*handlerfn)(struct lrc_message *, int);
+static handlerfn msg_handlers[MT_NR_TOTAL] = {
+	[MT_HANDSHAKE]	= msg_handler_handshake,
+	[MT_FORK]	= msg_handler_fork,
+	[MT_LOGMSG]	= msg_handler_logmsg,
+	[MT_EXIT]	= msg_handler_exit,
+};
 
 /* main loop */
 int child_started(pid_t pid)
@@ -308,64 +326,40 @@ int child_started(pid_t pid)
 	struct lrc_message *m;
 
 	for (;;) {
-		ret = poll(fds, nchildren + 1, 1);
+		ret = poll(fds, nchildren + 1, !nchildren ? -1 : 0);
 		if (ret > 0) {
 			int i;
-			for (i = 0; i < nchildren + 1 && ret; i++)
+			for (i = 0; i < nchildren + 1 && ret; i++) {
+				if (fds[i].revents & (POLLIN|POLLHUP))
+					ret--;
+
 				if (fds[i].revents & POLLIN) {
 					struct child *child;
-					int vec[2];
 
-					ret--;
-					m = lrc_message_recv(fds[ret].fd);
-					if (m->type == MT_HANDSHAKE) {
-						child = child_find_by_pid(m->pid);
-						if (child) {
-							trace(0, "%d already exists\n", m->pid);
-							free(m);
-							continue;
-						}
-
-						fprintf(stderr, ">>> %d\n", m->pid);
-						child = child_new(m->pid, 0);
-						free(m);
-
-						m = xmalloc(sizeof(*m) + sizeof(int) * 2);
-
-						lrc_message_init(m);
-						m->length = sizeof(int) * 2;
-						vec[0] = child->fd;
-						vec[1] = child->remote_fd;
-						trace(0, "%d, %d\n", vec[0], vec[1]);
-						memcpy(&m->payload.response.buf, vec, sizeof(int) * 2);
-
-						m->payload.response.code = 1; /* XXX */
-						m->type = MT_RESPONSE;
-						lrc_message_send(fds[ret].fd, m);
-						free(m);
-					} else if (m->type == MT_FORK) {
-						child = child_find_by_pid(m->payload.fork.child);
-						if (child) {
-							trace(0, "%d already exists\n",
-							      m->payload.fork.child);
-							free(m);
-							continue;
-						}
-						fprintf(stderr, ">>> %d FORKED %d\n",
-							m->pid, m->payload.fork.child);
-						child = child_new(m->payload.fork.child, 0);
-						free(m);
-					}
+					m = lrc_message_recv(fds[i].fd);
+					(msg_handlers[m->type])(m, fds[i].fd);
 				}
-		}
 
-		children_wait();
+				if (fds[i].revents & POLLHUP && i > 0) {
+					struct child *child = children[i - 1];
 
+					trace(0, "child %d hanged up\n",
+					      child->pid);
+					child_remove_by_idx(i - 1);
+					child_free(child);
+				}
+			}
+		} else if (ret == -1)
+			continue;
+
+		ret = children_wait(pid);
+
+		children_list();
 		if (!nchildren)
 			break;
 	}
 
-	return 0;
+	return ret;
 }
 
 int spawn(const char *cmd, char *const argv[])
@@ -506,8 +500,8 @@ int main(int argc, char *const argv[])
 
 	/* perhaps it makes sense to fork and handle the exit codes */
 	i = spawn(executable, new_argv);
-	if (i)
-		fprintf(stderr, "Failed trying to execute %s: %m\n", executable);
+	/*if (i)
+	  fprintf(stderr, "Failed trying to execute %s: %m\n", executable);*/
 
 	return i;
 }

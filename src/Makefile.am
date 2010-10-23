@@ -6,7 +6,7 @@ CLEANFILES =
 EXTRA_DIST = librandomcrash.sym \
 	librandomcrash.pc.in
 
-AM_LDFLAGS = -no-undefined
+AM_LDFLAGS = -no-undefined -Wl,-O1
 
 librandomcrash_la_SOURCES =	\
 	symbols.c		\

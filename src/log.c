@@ -96,9 +96,14 @@ static struct log_level log_level[] = {
 	{ "   ERR",	1 },
 };
 
+extern struct lrc_bus lrc_bus;
+
+#include "proto.h"
 void log_print(int level, const char *fmt, ...)
 {
 	va_list ap;
+	size_t len;
+	struct lrc_message *m;
 
 	if (!log_noutputs)
 		return;
@@ -107,8 +112,21 @@ void log_print(int level, const char *fmt, ...)
 		return;
 
 	fprintf(log_output[0].file, "%s: ", log_level[level].prefix);
+
+	m = alloca(BUFSIZ + sizeof(*m)); /* XXX: NULL */
+	lrc_message_init(m);
+
 	va_start(ap, fmt);
-	vfprintf(log_output[0].file, fmt, ap);
+	len = vsnprintf(m->payload.logmsg.message, BUFSIZ, fmt, ap);
+	fputs(m->payload.logmsg.message, log_output[0].file);
+
+	if (lrc_bus.fd_out) {
+		m->type = MT_LOGMSG;
+		m->length = len + sizeof(*m);
+		m->payload.logmsg.level = level;
+		lrc_message_send(lrc_bus.fd_out, m);
+	}
+
 	va_end(ap);
 
 	fflush(log_output[0].file);

@@ -142,9 +142,19 @@ void lrc_dobus(void)
 		return;
 }
 
+static void exit_notify(int status, void *data)
+{
+	struct lrc_message m;
+
+	lrc_message_init(&m);
+	m.type = MT_EXIT;
+	m.payload.exit.code = status;
+	lrc_message_send(lrc_bus.fd_out, &m);
+}
+
 static unsigned long int lrc_callno = 0;
 
-int __lrc_call_entry(struct override *o, void *ctxp)
+int lrc_call_entry(struct override *o, void *ctxp)
 {
 	struct handler *queue[MAXQUEUE];
 	int i, qlast = 0, ret = 0;
@@ -166,6 +176,13 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 		    acct_handlers[i]->probe_func &&
 		    !acct_handlers[i]->probe_func(o, ctxp))
 			break;
+
+	if (!lrc_strcmp(o->name, "_exit") ||
+	    !lrc_strcmp(o->name, "_Exit") ||
+	    !lrc_strcmp(o->name, "exit")) {
+		struct __lrc_callctx__exit *args = ctxp;
+		exit_notify(args->status, NULL);
+	}
 
 	if (!lrc_conf_long(CONF_NOCRASH)) {
 		if (lrc_callno <= lrc_conf_long(CONF_SKIPCALLS)) {
@@ -195,7 +212,7 @@ out:
 	return ret;
 }
 
-void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
+void lrc_call_exit(struct override *o, void *ctxp, void *retp)
 {
 	struct lrcpriv_callctx *callctx =
 		&((struct __lrc_callctx *)ctxp)->callctx;
@@ -210,7 +227,6 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 	if (!lrc_strcmp(o->name, "fork") && *(pid_t *)retp > 0) {
 		struct lrc_message m;
 
-		log_print(LL_OINFO, "FORKED! %d\n", *(pid_t *)retp);
 		lrc_message_init(&m);
 		m.type = MT_FORK;
 		m.payload.fork.child = *(pid_t *)retp;
@@ -218,6 +234,9 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 	} else if (!lrc_strcmp(o->name, "fork") && *(pid_t *)retp == 0) {
 		lrc_initbus();
 	}
+
+	if (!lrc_strcmp(o->name, "main"))
+		exit_notify(*(int *)retp, NULL);
 
 	if (callctx->acct_handler && callctx->acct_handler->exit_func)
 		callctx->acct_handler->exit_func(o, ctxp, retp);
@@ -253,6 +272,8 @@ EXPORT void __ctor lrc_init(void)
 
 	lrc_initbus();
 
+	on_exit(exit_notify, NULL);
+
 	lrc_up++;
 
 	lrc_leave();
@@ -268,7 +289,7 @@ EXPORT void __dtor lrc_done(void)
 }
 
 #ifdef __YEAH_RIGHT__
-int main (void)
+int __main(void)
 {
         return 0;
 }

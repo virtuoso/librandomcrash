@@ -6,6 +6,9 @@ enum {
 	MT_HANDSHAKE,
 	MT_RESPONSE,
 	MT_FORK,
+	MT_LOGMSG,
+	MT_EXIT,
+	MT_NR_TOTAL,
 };
 
 struct lrc_message {
@@ -23,6 +26,13 @@ struct lrc_message {
 		struct {
 			pid_t	child;
 		} fork;
+		struct {
+			int	level;
+			char	message[0];
+		} logmsg;
+		struct {
+			int	code;
+		} exit;
 	} payload;
 };
 

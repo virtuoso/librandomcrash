@@ -126,3 +126,15 @@ int sigfillset
 
 pid_t fork
 
+void _exit
+	int status
+
+void _Exit
+	int status
+
+void exit
+	int status
+
+int main
+	int argc
+	char ** argv

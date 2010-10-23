@@ -29,7 +29,8 @@ int main()
 
 	for (i = 0; i < NFORKS; i++) {
 		kill(pids[i], SIGINT);
-		waitpid(pids[i], &ret, 0);
+		while (pids[i] != waitpid(pids[i], &ret, 0))
+			;
 	}
 
 	return 0;
