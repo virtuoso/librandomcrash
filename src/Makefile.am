@@ -23,7 +23,7 @@ librandomcrash_la_SOURCES =	\
 	handlers/readdir.c
 
 librandomcrash_la_LIBADD = -ldl
-librandomcrash_la_CPPFLAGS = $(debug)
+librandomcrash_la_CPPFLAGS = -fvisibility=hidden $(debug)
 
 lrc_test_SOURCES =		\
 	symbols.c		\

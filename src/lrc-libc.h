@@ -27,7 +27,7 @@ static inline size_t lrc_strlen(const char *s)
 {
 	size_t ret;
 
-	if (lrc_is_up())
+	if (__lrc_orig_strlen_is_callable())
 		ret = __lrc_orig_strlen(s);
 	else
 		for (ret = 0; *(s + ret); ret++);
@@ -39,7 +39,7 @@ static inline char *lrc_strcpy(char *dest, const char *src)
 {
 	size_t i;
 
-	if (lrc_is_up())
+	if (__lrc_orig_strcpy_is_callable())
 		return __lrc_orig_strcpy(dest, src);
 
 	for (i = 0; src[i]; i++)
@@ -52,7 +52,7 @@ static inline int lrc_strcmp(const char *s1, const char *s2)
 {
 	int i;
 
-	if (lrc_is_up())
+	if (__lrc_orig_strcmp_is_callable())
 		return __lrc_orig_strcmp(s1, s2);
 
 	for (i = 0; s1[i] && s1[i] == s2[i]; i++);
@@ -64,19 +64,19 @@ static inline int lrc_strncmp(const char *s1, const char *s2, size_t n)
 {
 	int i;
 
-	if (lrc_is_up())
+	if (__lrc_orig_strncmp_is_callable())
 		return __lrc_orig_strncmp(s1, s2, n);
 
 	for (i = 0; i < n && s1[i] && s1[i] == s2[i]; i++);
 
-	return s1[i] - s2[i];
+	return i == n ? 0 : s1[i] - s2[i];
 }
 
 static inline char *lrc_strchrnul(const char *s, int c)
 {
 	int i;
 
-	if (lrc_is_up())
+	if (__lrc_orig_strchrnul_is_callable())
 		return __lrc_orig_strchrnul(s, c);
 
 	for (i = 0; s[i] && s[i] != c; i++);
@@ -87,7 +87,7 @@ static inline char *lrc_strchrnul(const char *s, int c)
 static inline pid_t lrc_gettid(void)
 {
 	/* XXX: gettid with glibc would require syscall() and I'm lazy now */
-	if (lrc_is_up())
+	if (__lrc_orig_getpid_is_callable())
 		return __lrc_orig_getpid();
 
 	return -1;
@@ -97,7 +97,7 @@ static inline void *lrc_memset(void *s, int c, size_t n)
 {
 	int i;
 
-	if (lrc_is_up())
+	if (__lrc_orig_memset_is_callable())
 		return __lrc_orig_memset(s, c, n);
 
 	for (i = 0; i < n; i++)
@@ -110,7 +110,7 @@ static inline void *lrc_memcpy(void *dest, const void *src, size_t n)
 {
 	size_t i;
 
-	if (lrc_is_up())
+	if (__lrc_orig_memcpy_is_callable())
 		return __lrc_orig_memcpy(dest, src, n);
 
 	for (i = 0; i < n; i++)
@@ -136,20 +136,44 @@ static inline char *lrc_getenv(const char *name)
 
 static inline ssize_t lrc_write(int fd, const void *buf, size_t count)
 {
-	if (lrc_is_up())
+	if (__lrc_orig_write_is_callable())
 		return __lrc_orig_write(fd, buf, count);
 
-	panic("lrc_write called before LRC is up.\n");
+	panic("lrc_write called, but no libc function available.\n");
 
 	return 0xdeadbeef;
 }
 
 static inline ssize_t lrc_read(int fd, void *buf, size_t count)
 {
-	if (lrc_is_up())
+	if (__lrc_orig_read_is_callable())
 		return __lrc_orig_read(fd, buf, count);
 
-	panic("lrc_read called before LRC is up.\n");
+	panic("lrc_read called, but no libc function available.\n");
+
+	return 0xdeadbeef;
+}
+
+/*
+ * Signal-related stuff follows
+ */
+
+static inline int lrc_sigemptyset(sigset_t *set)
+{
+	if (__lrc_orig_sigemptyset_is_callable())
+		return __lrc_orig_sigemptyset(set);
+
+	panic("lrc_sigemptyset called, but no libc function available.\n");
+
+	return 0xdeadbeef;
+}
+
+static inline int lrc_sigfillset(sigset_t *set)
+{
+	if (__lrc_orig_sigfillset_is_callable())
+		return __lrc_orig_sigfillset(set);
+
+	panic("lrc_sigfillset called, but no libc function available.\n");
 
 	return 0xdeadbeef;
 }

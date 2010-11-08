@@ -145,8 +145,8 @@ int main(int argc, char *const argv[])
 	char *lrc_opts = NULL;
 	int no_crash = 0;
 	char *logdir = NULL;
-    unsigned long int skip_calls = 0;
-    char buf[BUFSIZ];
+	unsigned long int skip_calls = 0;
+	char buf[BUFSIZ];
 
 	snprintf(lrc_path, PATH_MAX, "%s/lib/librandomcrash.so.%s",
 		 PKG_PREFIX, my_ver);
@@ -208,9 +208,9 @@ int main(int argc, char *const argv[])
 		lrc_opts = append_strings(lrc_opts, 3, "logdir=", logdir, ":");
 
 	if (skip_calls) {
-        snprintf(buf, BUFSIZ, "%lu", skip_calls);
+		snprintf(buf, BUFSIZ, "%lu", skip_calls);
 		lrc_opts = append_strings(lrc_opts, 3, "skip-calls=", buf, ":");
-    }
+	}
 
 	setenv(LRC_CONFIG_ENV, lrc_opts ? lrc_opts : "", 1);
 

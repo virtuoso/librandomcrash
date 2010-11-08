@@ -63,6 +63,7 @@ struct __lrc_callctx {
 #define __ctor __attribute__((constructor))
 #define __dtor __attribute__((destructor))
 #define __noret __attribute__((noreturn))
+#define EXPORT __attribute__((visibility("default")))
 
 int __lrc_call_entry(struct override *o, void *ctxp);
 void __lrc_call_exit(struct override *o, void *ctxp, void *retp);

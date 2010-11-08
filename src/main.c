@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
+#include <signal.h>
 
 #include "override.h"
 #include "handlers.h"
@@ -37,8 +38,67 @@
 static const char my_name[] = PACKAGE;
 static const char my_ver[] = VERSION;
 
-static int lrc_up;
-static int lrc_configured = 0;
+static __thread int lrc_up;
+
+/*
+ * lrc_depth explicitly guards against original libc functions
+ * being overridden when called from lrc code
+ */
+static __thread unsigned int lrc_depth;
+static __thread sigset_t lrc_saved_sigset;
+
+/*
+ * Block all signals and save previous signal mask
+ */
+static void lrc_sigblock(void)
+{
+	sigset_t set;
+
+	lrc_sigfillset(&set);
+	sigprocmask(SIG_BLOCK, &set, &lrc_saved_sigset);
+}
+
+/*
+ * Restore signal mask
+ */
+static void lrc_sigunblock(void)
+{
+	sigprocmask(SIG_SETMASK, &lrc_saved_sigset, NULL);
+	lrc_sigemptyset(&lrc_saved_sigset);
+}
+
+/*
+ * Indicate that the execution is within lrc
+ */
+static void lrc_enter(void)
+{
+	lrc_sigblock();
+	lrc_depth++;
+	lrc_sigunblock();
+}
+
+static bool lrc_try_enter(void)
+{
+	lrc_sigblock();
+
+	if (lrc_depth) {
+		lrc_sigunblock();
+		return false;
+	}
+
+	lrc_depth++;
+	lrc_sigunblock();
+
+	return true;
+}
+
+static void lrc_leave(void)
+{
+	if (!lrc_leave)
+		panic("inconsistent lrc depth");
+
+	lrc_depth--;
+}
 
 bool lrc_is_up(void)
 {
@@ -53,18 +113,20 @@ extern struct handler *handlers[];
 
 void __ctor lrc_init(void);
 
-unsigned long int lrc_callno = 0;
+static unsigned long int lrc_callno = 0;
 
 int __lrc_call_entry(struct override *o, void *ctxp)
 {
-    if (lrc_configured)
-        lrc_callno++;
-
 	struct handler *queue[MAXQUEUE];
-	int i, qlast = 0;
+	int i, qlast = 0, ret = 0;
+
+	if (!lrc_try_enter())
+		return 0;
 
 	if (!lrc_up)
-		lrc_init();
+		panic("lrc is not up where it ought to be.\n");
+
+	lrc_callno++;
 
 	debug("%s() entry, call nr: %lu\n", o->name, lrc_callno);
 
@@ -77,10 +139,10 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 			break;
 
 	if (!lrc_conf_long(CONF_NOCRASH)) {
-        if (lrc_callno <= lrc_conf_long(CONF_SKIPCALLS)) {
-            debug("%s() skipping\n", o->name);
-            return 0;
-        }
+		if (lrc_callno <= lrc_conf_long(CONF_SKIPCALLS)) {
+			debug("%s() skipping\n", o->name);
+			goto out;
+		}
 
 		for (i = 0; handlers[i] && qlast < MAXQUEUE; i++)
 			if (!lrc_strcmp(handlers[i]->fn_name, o->name) &&
@@ -91,14 +153,17 @@ int __lrc_call_entry(struct override *o, void *ctxp)
 
 		if (!qlast) {
 			warn("no handlers for %s call\n", o->name);
-			return 0;
+			goto out;
 		}
 
 		/* XXX: need to pick a random one */
-		return queue[0]->entry_func(o, ctxp);
+		ret = queue[0]->entry_func(o, ctxp);
 	}
 
-	return 0;
+out:
+	lrc_leave();
+
+	return ret;
 }
 
 void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
@@ -106,8 +171,8 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 	struct lrcpriv_callctx *callctx =
 		&((struct __lrc_callctx *)ctxp)->callctx;
 
-	if (!lrc_up)
-		panic("Stack corruption detected");
+	if (!lrc_try_enter())
+		return;
 
 	debug("%s() exit, ret=%d\n", o->name,
 		  retp ? *(int *)retp : 0);
@@ -117,9 +182,10 @@ void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
 
 	if (callctx->handler && callctx->handler->exit_func)
 		callctx->handler->exit_func(o, ctxp, retp);
+	lrc_leave();
 }
 
-void __ctor lrc_init(void)
+EXPORT void __ctor lrc_init(void)
 {
 	int i;
 
@@ -131,7 +197,9 @@ void __ctor lrc_init(void)
 		lrc_overrides[i]->orig_func = dlsym(RTLD_NEXT,
 						    lrc_overrides[i]->name);
 
-	lrc_up++;
+	lrc_sigemptyset(&lrc_saved_sigset);
+
+	lrc_enter();
 
 	log_init();
 	log_print(LL_OINFO, "%s, %s initialized\n", my_name, my_ver);
@@ -139,10 +207,11 @@ void __ctor lrc_init(void)
 	lrc_initmem();
 	lrc_configure();
 
-    lrc_configured++;
+	lrc_up++;
+	lrc_leave();
 }
 
-void __dtor lrc_done(void)
+EXPORT void __dtor lrc_done(void)
 {
 	int i;
 
