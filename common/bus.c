@@ -1,16 +1,19 @@
 #include <sys/types.h>
+#include <sys/time.h>
 #include "../common/proto.h"
 
-int lrc_message_init(struct lrc_message *m)
+int lrc_message_init(struct lrc_message *m, int type)
 {
 	lrc_memset(m, 0, sizeof(*m));
 	m->pid = lrc_gettid();
+	m->type = type;
 
 	return 0;
 }
 
 int lrc_message_send(int fd, struct lrc_message *m)
 {
+	gettimeofday(&m->timestamp, NULL);
 	return lrc_write(fd, m, lrc_message_size(m));
 }
 

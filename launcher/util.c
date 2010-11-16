@@ -3,10 +3,25 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <sys/poll.h>
+#include <errno.h>
+#include <assert.h>
 
 void *xmalloc(size_t len)
 {
 	void *x = malloc(len);
+
+	if (!x) {
+		fprintf(stderr, "We're short on memory\n");
+		exit(EXIT_FAILURE);
+	}
+
+	return x;
+}
+
+void *xrealloc(void *ptr, size_t len)
+{
+	void *x = realloc(ptr, len);
 
 	if (!x) {
 		fprintf(stderr, "We're short on memory\n");
@@ -26,6 +41,25 @@ char *xstrdup(const char *str)
 	}
 
 	return x;
+}
+
+int xpoll(struct pollfd *fds, nfds_t nfds, int timeout)
+{
+	int ret;
+
+	assert(nfds);
+	assert(fds);
+
+	do {
+		ret = poll(fds, nfds, timeout);
+	} while (ret == -1 && errno == EINTR);
+
+	if (ret == -1) {
+		fprintf(stderr, "poll fails: %m\n");
+		exit(EXIT_FAILURE);
+	}
+
+	return ret;
 }
 
 char *append_string(char *string, char *data)
@@ -57,3 +91,56 @@ char *append_strings(char *string, int n, ...)
 
 	return s;
 }
+
+ssize_t __vread(int is_pipe, char **out, const char *openstr)
+{
+        FILE *p;
+        char *buf = NULL;
+        size_t len = 0;
+        int r = 1;
+
+        p = is_pipe ? popen(openstr, "r") : fopen(openstr, "r");
+        if (!p)
+                return -1;
+
+        while (!feof(p) && r) {
+                buf = xrealloc(buf, len + BUFSIZ);
+                if (!buf)
+                        return -1;
+
+                len +=
+                r = read(fileno(p), buf + len, BUFSIZ);
+        }
+
+        if (is_pipe)
+                pclose(p);
+        else
+                fclose(p);
+
+        buf[len] = '\0';
+        *out = buf;
+
+        return len;
+}
+
+ssize_t vread_file(char **out, const char *openstr)
+{
+        return __vread(0, out, openstr);
+}
+
+ssize_t read_file(char **out, const char *fmt, ...)
+{
+        va_list args;
+        char *opstr;
+        int s;
+
+        va_start(args, fmt);
+        s = vasprintf(&opstr, fmt, args);
+        va_end(args);
+
+        if (s == -1)
+                return -1;
+
+        return vread_file(out, opstr);
+}
+

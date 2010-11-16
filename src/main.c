@@ -21,6 +21,7 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <dlfcn.h>
 #include <errno.h>
 #include <string.h>
@@ -117,21 +118,58 @@ struct lrc_bus lrc_bus;
 void lrc_initbus(void)
 {
 	struct lrc_message m, *r;
+	struct msghdr msg;
+	struct cmsghdr *cmsg;
+	struct iovec iov;
+	pid_t dest_pid;
+	char buf[CMSG_SPACE(sizeof(int))];
+	ssize_t len;
 
 	if (!lrc_conf_long(CONF_FD))
 		return;
 
 	lrc_bus.fd_in = lrc_bus.fd_out = lrc_conf_long(CONF_FD);
 
-	lrc_message_init(&m);
+	lrc_message_init(&m, MT_HANDSHAKE);
 	m.payload.handshake.flags = 0xabbadead; /* XXX */
-	m.type = MT_HANDSHAKE;
 	lrc_message_send(lrc_bus.fd_out, &m);
 
+retry:
 	r = lrc_message_recv(lrc_bus.fd_in);
 	if (r->type == MT_RESPONSE) {
+		int fd;
+
 		log_print(LL_OINFO, "connected to launcher, fds: %d<>%d\n",
-			  (int)r->payload.response.buf[0], (int)r->payload.response.buf[4]);
+			  r->payload.response.fds[0], r->payload.response.fds[1]);
+		lrc_memset(&msg, 0, sizeof(msg));
+		msg.msg_control = buf;
+		msg.msg_controllen = sizeof(buf);
+		iov.iov_base = &dest_pid;
+		iov.iov_len = sizeof(dest_pid);
+		msg.msg_iov = &iov;
+		msg.msg_iovlen = 1;
+
+		do {
+			len = recvmsg(lrc_bus.fd_in, &msg, 0);
+		} while (len == -1 && errno == EINTR);
+
+		if (len == -1) {
+			log_print(LL_OERR, "recvmsg failed: %m\n");
+			panic("Can't receive ipc socket\n");
+		}
+
+		cmsg = CMSG_FIRSTHDR(&msg);
+		fd = *(int *)CMSG_DATA(cmsg);
+		log_print(LL_OINFO, "received fd %d for %d\n", fd, dest_pid);
+		if (dest_pid != lrc_gettid()) {
+			log_print(LL_OINFO, "### %d != %d\n", dest_pid,
+				  lrc_gettid());
+			lrc_message_init(&m, MT_REQUESTFD);
+			lrc_message_send(lrc_bus.fd_out, &m);
+			goto retry;
+		}
+
+		lrc_bus.fd_in = lrc_bus.fd_out = fd;
 		lrc_bus.connected = 1;
 	}
 }
@@ -146,10 +184,12 @@ static void exit_notify(int status, void *data)
 {
 	struct lrc_message m;
 
-	lrc_message_init(&m);
-	m.type = MT_EXIT;
+	lrc_enter();
+	lrc_message_init(&m, MT_EXIT);
 	m.payload.exit.code = status;
 	lrc_message_send(lrc_bus.fd_out, &m);
+	log_print(LL_OINFO, "STILL ALIVE\n");
+	lrc_leave();
 }
 
 static unsigned long int lrc_callno = 0;
@@ -227,16 +267,12 @@ void lrc_call_exit(struct override *o, void *ctxp, void *retp)
 	if (!lrc_strcmp(o->name, "fork") && *(pid_t *)retp > 0) {
 		struct lrc_message m;
 
-		lrc_message_init(&m);
-		m.type = MT_FORK;
+		lrc_message_init(&m, MT_FORK);
 		m.payload.fork.child = *(pid_t *)retp;
 		lrc_message_send(lrc_bus.fd_out, &m);
 	} else if (!lrc_strcmp(o->name, "fork") && *(pid_t *)retp == 0) {
 		lrc_initbus();
 	}
-
-	if (!lrc_strcmp(o->name, "main"))
-		exit_notify(*(int *)retp, NULL);
 
 	if (callctx->acct_handler && callctx->acct_handler->exit_func)
 		callctx->acct_handler->exit_func(o, ctxp, retp);
@@ -286,10 +322,11 @@ EXPORT void __dtor lrc_done(void)
 	for (i = 0; acct_handlers[i]; i++)
 		if (acct_handlers[i]->fini_func)
 			acct_handlers[i]->fini_func();
+	log_print(LL_OINFO, "STILL ALIVE\n");
 }
 
 #ifdef __YEAH_RIGHT__
-int __main(void)
+int main(void)
 {
         return 0;
 }

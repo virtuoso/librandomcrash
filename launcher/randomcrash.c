@@ -21,6 +21,7 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
 #include <string.h>
@@ -30,9 +31,11 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <signal.h>
+#include <time.h>
 
 #include "util.h"
 #include "proto.h"
+#include "maps.h"
 
 static const char my_name[] = "randomcrash";
 static const char my_ver[] = VERSION;
@@ -144,6 +147,11 @@ struct child *child_new(pid_t pid, pid_t ppid)
 		return;
 	}
 
+	/*fprintf(stderr, "### NULL: %d, 0x400000: %d\n",
+		validate_addr(pid, 0, 0),
+		validate_addr(pid, 0x400000, VA_OPT_READ | VA_OPT_EXEC));
+	maps_save(pid, VA_OPT_OURS);*/
+
 	child = xmalloc(sizeof(*child));
 	child->pid = pid;
 	child->ppid = ppid;
@@ -249,31 +257,95 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 {
 	struct child *child;
 	int vec[2];
+	struct msghdr msg = { 0 };
+	struct cmsghdr *cmsg;
+	struct iovec iov;
+	pid_t dest_pid = m->pid;
+	char buf[CMSG_SPACE(sizeof(int))];
 
 	child = child_find_by_pid(m->pid);
-	if (child) {
+	if (child)
 		trace(0, "%d already exists\n", m->pid);
-		free(m);
-		return -1;
-	}
+	else
+		child = child_new(m->pid, 0);
 
 	fprintf(stderr, ">>> %d\n", m->pid);
-	child = child_new(m->pid, 0);
 	free(m);
 
 	m = xmalloc(sizeof(*m) + sizeof(int) * 2);
 
-	lrc_message_init(m);
+	lrc_message_init(m, MT_RESPONSE);
 	m->length = sizeof(int) * 2;
 	vec[0] = child->fd;
 	vec[1] = child->remote_fd;
 	trace(0, "%d, %d\n", vec[0], vec[1]);
-	memcpy(&m->payload.response.buf, vec, sizeof(int) * 2);
+	memcpy(&m->payload.response.fds, vec, sizeof(vec));
+	m->payload.response.code = RESP_OK;
 
 	m->payload.response.code = 1; /* XXX */
-	m->type = MT_RESPONSE;
 	lrc_message_send(fd, m);
 	free(m);
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_control = buf;
+	msg.msg_controllen = CMSG_LEN(sizeof(int));
+	iov.iov_base = &dest_pid;
+	iov.iov_len = sizeof(dest_pid);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+	*(int *)CMSG_DATA(cmsg) = vec[1];
+	fprintf(stderr, "### sendmsg: %d: %m\n", sendmsg(fd, &msg, 0));
+	children2fds();
+
+	return 0;
+}
+
+static int msg_handler_requestfd(struct lrc_message *m, int fd)
+{
+	struct child *child;
+	int vec[2];
+	struct msghdr msg = { 0 };
+	struct cmsghdr *cmsg;
+	struct iovec iov;
+	pid_t dest_pid = m->pid;
+	char buf[CMSG_SPACE(sizeof(int))];
+
+	child = child_find_by_pid(m->pid);
+
+	fprintf(stderr, ">>> %d\n", m->pid);
+	free(m);
+
+	m = xmalloc(sizeof(*m) + sizeof(int) * 2);
+
+	lrc_message_init(m, MT_RESPONSE);
+	m->length = sizeof(int) * 2;
+	vec[0] = child->fd;
+	vec[1] = child->remote_fd;
+	trace(0, "%d, %d\n", vec[0], vec[1]);
+	memcpy(&m->payload.response.fds, vec, sizeof(vec));
+	m->payload.response.code = RESP_OK;
+
+	m->payload.response.code = 1; /* XXX */
+	lrc_message_send(fd, m);
+	free(m);
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_control = buf;
+	msg.msg_controllen = CMSG_LEN(sizeof(int));
+	iov.iov_base = &dest_pid;
+	iov.iov_len = sizeof(dest_pid);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+	*(int *)CMSG_DATA(cmsg) = vec[1];
+	fprintf(stderr, "### sendmsg: %d: %m\n", sendmsg(fd, &msg, 0));
 
 	return 0;
 }
@@ -282,16 +354,16 @@ static int msg_handler_fork(struct lrc_message *m, int fd)
 {
 	struct child *child;
 
-	child = child_find_by_pid(m->payload.fork.child);
-	if (child) {
-		trace(0, "%d already exists\n",
-		      m->payload.fork.child);
-		free(m);
-		return -1;
-	}
 	fprintf(stderr, ">>> %d FORKED %d\n",
 		m->pid, m->payload.fork.child);
-	child = child_new(m->payload.fork.child, 0);
+
+	child = child_find_by_pid(m->payload.fork.child);
+	if (child)
+		trace(0, "%d already exists\n",
+		      m->payload.fork.child);
+	else
+		child = child_new(m->payload.fork.child, 0);
+
 	free(m);
 
 	return 0;
@@ -299,24 +371,49 @@ static int msg_handler_fork(struct lrc_message *m, int fd)
 
 static int msg_handler_logmsg(struct lrc_message *m, int fd)
 {
-	fprintf(stderr, "[%d:%d] %s", m->pid, m->payload.logmsg.level,
+	struct tm tm;
+
+	localtime_r(&m->timestamp.tv_sec, &tm);
+	fprintf(stderr, "[%d:%d@%02d:%02d:%02d.%ld] %s", m->pid,
+		m->payload.logmsg.level,
+		tm.tm_hour, tm.tm_min, tm.tm_sec, m->timestamp.tv_usec,
 		m->payload.logmsg.message);
+	free(m);
 	return 0;
 }
 
 static int msg_handler_exit(struct lrc_message *m, int fd)
 {
+	struct child *child;
+	int i;
+
 	trace(0, "child %d is exiting with %d code\n",
 	      m->pid, m->payload.exit.code);
+
+	i = child_find_idx_by_pid(m->pid);
+	child = children[i];
+
+	child_remove_by_idx(i);
+	child_free(child);
+	free(m);
+
 	return 0;
+}
+
+static int msg_handler_bug(struct lrc_message *m, int fd)
+{
+	trace(0, "BUG in child %d\n", m->pid);
+	exit(EXIT_FAILURE);
 }
 
 typedef int (*handlerfn)(struct lrc_message *, int);
 static handlerfn msg_handlers[MT_NR_TOTAL] = {
 	[MT_HANDSHAKE]	= msg_handler_handshake,
+	[MT_REQUESTFD]	= msg_handler_requestfd,
 	[MT_FORK]	= msg_handler_fork,
 	[MT_LOGMSG]	= msg_handler_logmsg,
 	[MT_EXIT]	= msg_handler_exit,
+	[MT_BUG]	= msg_handler_bug,
 };
 
 /* main loop */
@@ -325,13 +422,25 @@ int child_started(pid_t pid)
 	int ret;
 	struct lrc_message *m;
 
+	trace(1, "--- MAIN PID %d ---\n", pid);
 	for (;;) {
-		ret = poll(fds, nchildren + 1, !nchildren ? -1 : 0);
+		ret = xpoll(fds, nchildren + 1, !nchildren ? -1 : 0);
 		if (ret > 0) {
 			int i;
 			for (i = 0; i < nchildren + 1 && ret; i++) {
-				if (fds[i].revents & (POLLIN|POLLHUP))
+				if (fds[i].revents & (POLLIN|POLLHUP|POLLNVAL))
 					ret--;
+
+				if (fds[i].revents & POLLNVAL) {
+					struct child *child = children[i - 1];
+					trace(0, "ERROR: fd %d is closed\n",
+					      fds[i].fd);
+
+					child_remove_by_idx(i - 1);
+					child_free(child);
+					children2fds();
+					continue;
+				}
 
 				if (fds[i].revents & POLLIN) {
 					struct child *child;
@@ -340,7 +449,7 @@ int child_started(pid_t pid)
 					(msg_handlers[m->type])(m, fds[i].fd);
 				}
 
-				if (fds[i].revents & POLLHUP && i > 0) {
+				if ((fds[i].revents & POLLHUP) && i > 0) {
 					struct child *child = children[i - 1];
 
 					trace(0, "child %d hanged up\n",
@@ -349,8 +458,7 @@ int child_started(pid_t pid)
 					child_free(child);
 				}
 			}
-		} else if (ret == -1)
-			continue;
+		}
 
 		ret = children_wait(pid);
 
@@ -368,36 +476,19 @@ int spawn(const char *cmd, char *const argv[])
 	int i = 0;
 	int ret;
 
-	/*if (verbosity >= VERB_DEBUG) {
-		DBG("going to execute [%s]:", cmd);
-		while (argv[i])
-			output(ERR, VERB_DEBUG, " %s", argv[i++]);
-		output(ERR, VERB_DEBUG, "\n");
-		}*/
-
 	pid = fork();
-	if (pid) {
-		return child_started(pid);
-		//waitpid(-1, &ret, 0); /* <- fall through */
-	} else {
+	if (!pid) {
 		ret = execve(cmd, argv, environ);
 		if (ret) {
-			fprintf(stderr, "exec %s failed\n", cmd);
+			fprintf(stderr, "exec %s failed: %m\n", cmd);
 			exit(EXIT_FAILURE);
 		}
+	} else if (pid < 0) {
+		fprintf(stderr, "fork %s failed: %m\n", cmd);
+		exit(EXIT_FAILURE);
 	}
 
-	/*if (verbosity >= VERB_DEBUG)
-	{
-		DBG("exit code: ");
-		if (WIFEXITED(ret))
-			output(ERR, VERB_DEBUG, "%d\n", WEXITSTATUS(ret));
-		else if (WIFSIGNALED(ret))
-			output(ERR, VERB_DEBUG, "SIG %d%s\n", WTERMSIG(ret),
-			       WCOREDUMP(ret) ? " (core dumped)" : "");
-			       }*/
-
-	return ret;// (WIFEXITED(ret) && WEXITSTATUS(ret) == 0);
+	return child_started(pid);
 }
 
 int main(int argc, char *const argv[])
@@ -500,8 +591,6 @@ int main(int argc, char *const argv[])
 
 	/* perhaps it makes sense to fork and handle the exit codes */
 	i = spawn(executable, new_argv);
-	/*if (i)
-	  fprintf(stderr, "Failed trying to execute %s: %m\n", executable);*/
 
 	return i;
 }

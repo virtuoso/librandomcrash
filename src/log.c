@@ -26,8 +26,10 @@
 #include <signal.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <sys/time.h>
 #include "override.h"
 #include "log.h"
+#include "proto.h"
 
 struct log_output {
 	FILE	*file;
@@ -43,8 +45,11 @@ char log_dir[] = "/tmp";
 
 void lrc_dump_trace(int fd);
 
+extern struct lrc_bus lrc_bus;
+
 void __noret panic(const char *msg)
 {
+	struct lrc_message m;
 	int i;
 
 	for (i = 0; i < log_noutputs; i++) {
@@ -52,6 +57,12 @@ void __noret panic(const char *msg)
 		lrc_dump_trace(fileno(log_output[0].file));
 	}
 
+	if (lrc_bus.fd_out) {
+		lrc_message_init(&m, MT_BUG);
+		lrc_message_send(lrc_bus.fd_out, &m);
+		for (;;) sleep(1);
+		exit(EXIT_FAILURE);
+	}
 	abort();
 }
 
@@ -96,9 +107,6 @@ static struct log_level log_level[] = {
 	{ "   ERR",	1 },
 };
 
-extern struct lrc_bus lrc_bus;
-
-#include "proto.h"
 void log_print(int level, const char *fmt, ...)
 {
 	va_list ap;
@@ -114,7 +122,7 @@ void log_print(int level, const char *fmt, ...)
 	fprintf(log_output[0].file, "%s: ", log_level[level].prefix);
 
 	m = alloca(BUFSIZ + sizeof(*m)); /* XXX: NULL */
-	lrc_message_init(m);
+	lrc_message_init(m, MT_LOGMSG);
 
 	va_start(ap, fmt);
 	len = vsnprintf(m->payload.logmsg.message, BUFSIZ, fmt, ap);

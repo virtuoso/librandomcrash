@@ -20,8 +20,13 @@
 #endif
 
 void *xmalloc(size_t len);
+void *xrealloc(void *ptr, size_t len);
 char *xstrdup(const char *str);
+int xpoll(struct pollfd *fds, nfds_t nfds, int timeout);
 char *append_string(char *string, char *data);
 char *append_strings(char *string, int n, ...);
+ssize_t __vread(int is_pipe, char **out, const char *openstr);
+ssize_t vread_file(char **out, const char *openstr);
+ssize_t read_file(char **out, const char *fmt, ...);
 
 #endif

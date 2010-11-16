@@ -135,6 +135,8 @@ void _Exit
 void exit
 	int status
 
-int main
-	int argc
-	char ** argv
+void abort
+
+unsigned int sleep
+	unsigned int seconds
+
