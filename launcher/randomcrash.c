@@ -50,7 +50,7 @@ void sigabrt_dumper(int sig)
 {
 	int i;
 
-	fprintf(stderr, "signal %d received\n", sig);
+	info("signal %d received\n", sig);
 	lrc_dump_trace(2);
 }
 #endif
@@ -93,6 +93,8 @@ static void usage(void)
 		fprintf(stderr, "-%c, --%s\n\t%s\n",
 			options[i].val, options[i].name, optdesc[i]);
 }
+
+unsigned int verbosity = DBG_MASK;
 
 /* IPC */
 int inbound_fd;
@@ -158,7 +160,7 @@ struct child *child_new(pid_t pid, pid_t ppid)
 
 	i = socketpair(AF_UNIX, SOCK_STREAM, 0, fdsv);
 	if (i) {
-		fprintf(stderr, "Failed to create a pipe\n");
+		error("Failed to create a pipe\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -213,8 +215,8 @@ void child_free(struct child *child)
 		return;
 
 	if (child->state != CS_EXITING)
-		fprintf(stderr, "child %d is in the wrong state %d\n",
-			child->pid, child->state);
+		trace(DBG_CHILD, "child %d is in the wrong state %d\n",
+		      child->pid, child->state);
 	close(child->fd);
 	close(child->remote_fd);
 	free(child);
@@ -230,7 +232,7 @@ int children_wait(pid_t pid)
 
 			if (child->pid == pid)
 				mret = WEXITSTATUS(ret);
-			trace(0, "child %d exited with %d code\n",
+			trace(DBG_CHILD, "child %d exited with %d code\n",
 			      child->pid, mret);
 			child_remove_by_idx(i);
 			child_free(child);
@@ -256,7 +258,7 @@ void children_list(void)
 static int msg_handler_handshake(struct lrc_message *m, int fd)
 {
 	struct child *child;
-	int vec[2];
+	int vec[2], ret;
 	struct msghdr msg = { 0 };
 	struct cmsghdr *cmsg;
 	struct iovec iov;
@@ -269,7 +271,7 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 	else
 		child = child_new(m->pid, 0);
 
-	fprintf(stderr, ">>> %d\n", m->pid);
+	trace(DBG_PROTO, ">>> %d\n", m->pid);
 	free(m);
 
 	m = xmalloc(sizeof(*m) + sizeof(int) * 2);
@@ -298,7 +300,8 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 	cmsg->cmsg_type = SCM_RIGHTS;
 	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
 	*(int *)CMSG_DATA(cmsg) = vec[1];
-	fprintf(stderr, "### sendmsg: %d: %m\n", sendmsg(fd, &msg, 0));
+	ret = sendmsg(fd, &msg, 0);
+	trace(DBG_PROTO, "### sendmsg: %d: %m\n", ret);
 	children2fds();
 
 	return 0;
@@ -307,7 +310,7 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 static int msg_handler_requestfd(struct lrc_message *m, int fd)
 {
 	struct child *child;
-	int vec[2];
+	int vec[2], ret;
 	struct msghdr msg = { 0 };
 	struct cmsghdr *cmsg;
 	struct iovec iov;
@@ -316,7 +319,7 @@ static int msg_handler_requestfd(struct lrc_message *m, int fd)
 
 	child = child_find_by_pid(m->pid);
 
-	fprintf(stderr, ">>> %d\n", m->pid);
+	trace(DBG_PROTO, ">>> %d\n", m->pid);
 	free(m);
 
 	m = xmalloc(sizeof(*m) + sizeof(int) * 2);
@@ -325,7 +328,7 @@ static int msg_handler_requestfd(struct lrc_message *m, int fd)
 	m->length = sizeof(int) * 2;
 	vec[0] = child->fd;
 	vec[1] = child->remote_fd;
-	trace(0, "%d, %d\n", vec[0], vec[1]);
+	trace(DBG_CHILD, "%d, %d\n", vec[0], vec[1]);
 	memcpy(&m->payload.response.fds, vec, sizeof(vec));
 	m->payload.response.code = RESP_OK;
 
@@ -345,7 +348,8 @@ static int msg_handler_requestfd(struct lrc_message *m, int fd)
 	cmsg->cmsg_type = SCM_RIGHTS;
 	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
 	*(int *)CMSG_DATA(cmsg) = vec[1];
-	fprintf(stderr, "### sendmsg: %d: %m\n", sendmsg(fd, &msg, 0));
+	ret = sendmsg(fd, &msg, 0);
+	trace(DBG_PROTO, "### sendmsg: %d: %m\n", ret);
 
 	return 0;
 }
@@ -354,12 +358,12 @@ static int msg_handler_fork(struct lrc_message *m, int fd)
 {
 	struct child *child;
 
-	fprintf(stderr, ">>> %d FORKED %d\n",
-		m->pid, m->payload.fork.child);
+	trace(DBG_CHILD, ">>> %d FORKED %d\n",
+	      m->pid, m->payload.fork.child);
 
 	child = child_find_by_pid(m->payload.fork.child);
 	if (child)
-		trace(0, "%d already exists\n",
+		trace(DBG_CHILD, "%d already exists\n",
 		      m->payload.fork.child);
 	else
 		child = child_new(m->payload.fork.child, 0);
@@ -374,10 +378,10 @@ static int msg_handler_logmsg(struct lrc_message *m, int fd)
 	struct tm tm;
 
 	localtime_r(&m->timestamp.tv_sec, &tm);
-	fprintf(stderr, "[%d:%d@%02d:%02d:%02d.%ld] %s", m->pid,
-		m->payload.logmsg.level,
-		tm.tm_hour, tm.tm_min, tm.tm_sec, m->timestamp.tv_usec,
-		m->payload.logmsg.message);
+	log("[%d:%d@%02d:%02d:%02d.%ld] %s", m->pid,
+	    m->payload.logmsg.level,
+	    tm.tm_hour, tm.tm_min, tm.tm_sec, m->timestamp.tv_usec,
+	    m->payload.logmsg.message);
 	free(m);
 	return 0;
 }
@@ -387,7 +391,7 @@ static int msg_handler_exit(struct lrc_message *m, int fd)
 	struct child *child;
 	int i;
 
-	trace(0, "child %d is exiting with %d code\n",
+	trace(DBG_CHILD, "child %d is exiting with %d code\n",
 	      m->pid, m->payload.exit.code);
 
 	i = child_find_idx_by_pid(m->pid);
@@ -402,7 +406,7 @@ static int msg_handler_exit(struct lrc_message *m, int fd)
 
 static int msg_handler_bug(struct lrc_message *m, int fd)
 {
-	trace(0, "BUG in child %d\n", m->pid);
+	trace(DBG_CHILD, "BUG in child %d\n", m->pid);
 	exit(EXIT_FAILURE);
 }
 
@@ -422,7 +426,7 @@ int child_started(pid_t pid)
 	int ret;
 	struct lrc_message *m;
 
-	trace(1, "--- MAIN PID %d ---\n", pid);
+	trace(DBG_BASIC, "--- MAIN PID %d ---\n", pid);
 	for (;;) {
 		ret = xpoll(fds, nchildren + 1, !nchildren ? -1 : 0);
 		if (ret > 0) {
@@ -433,7 +437,7 @@ int child_started(pid_t pid)
 
 				if (fds[i].revents & POLLNVAL) {
 					struct child *child = children[i - 1];
-					trace(0, "ERROR: fd %d is closed\n",
+					trace(DBG_PROTO, "ERROR: fd %d is closed\n",
 					      fds[i].fd);
 
 					child_remove_by_idx(i - 1);
@@ -452,7 +456,7 @@ int child_started(pid_t pid)
 				if ((fds[i].revents & POLLHUP) && i > 0) {
 					struct child *child = children[i - 1];
 
-					trace(0, "child %d hanged up\n",
+					trace(DBG_CHILD, "child %d hanged up\n",
 					      child->pid);
 					child_remove_by_idx(i - 1);
 					child_free(child);
