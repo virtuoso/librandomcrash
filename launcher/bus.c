@@ -13,6 +13,7 @@
 #define lrc_memcpy memcpy
 #ifdef __LRC_DEBUG__
 #include <signal.h>
+void sigabrt_dumper(int);
 #define panic(x) do { sigabrt_dumper(SIGABRT); abort(); } while (0)
 #else
 #define panic(x) abort()

@@ -1,6 +1,24 @@
 #ifndef __LAUNCHER_UTIL_H__
 #define __LAUNCHER_UTIL_H__
 
+#define _GNU_SOURCE
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <string.h>
+#include <linux/limits.h>
+#include <limits.h>
+#include <sys/types.h>
+#include <sys/poll.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <time.h>
+#include <unistd.h>
+#include <getopt.h>
+
 #ifdef __LRC_DEBUG__
 #define DEVELOPER_MODE
 #endif
@@ -56,6 +74,12 @@ extern unsigned int verbosity;
 
 #define error(f, args ...)				\
 	color_output(__CYAN, stderr, ERROR, f, ## args)
+
+#ifdef DEVELOPER_MODE
+void sigabrt_dumper(int sig);
+#else
+//void sigabrt_dumper(int sig) {}
+#endif /* !DEVELOPER_MODE */
 
 void *xmalloc(size_t len);
 void *xrealloc(void *ptr, size_t len);

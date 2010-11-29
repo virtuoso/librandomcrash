@@ -18,11 +18,6 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <limits.h>
-#include <sys/poll.h>
 #include "util.h"
 #include "maps.h"
 
@@ -52,7 +47,6 @@ struct maprec {
 static void maps_scan(pid_t pid, int (*fn)(struct maprec *, void *),
 		      void *data)
 {
-	char filename[PATH_MAX];
 	struct maprec *current;
 	char *maps;
 	ssize_t l;
@@ -185,8 +179,9 @@ static int save_callback(struct maprec *current, void *data)
 		current->write ? 'w' : '-',
 		current->execute ? 'x' : '-',
 		current->shared ? 's' : 'p',
-		current->offset, current->device >> 8,
-		current->device & 0xf, current->inode
+		current->offset,
+		(unsigned int)(current->device >> 8),
+		(unsigned int)(current->device & 0xf), current->inode
 		);
 	if (current->path)
 		fprintf(s->out, " %s", current->path);

@@ -45,7 +45,7 @@ AM_CONDITIONAL(HAVE_LINUX, [test "${SYS}" = "linux"])
 AC_ARG_WITH(debug,
 		AS_HELP_STRING([--with-debug],
 		               [enables hacker mode]),
-			       [debug="-D__LRC_DEBUG__"],
+			       [debug="-D__LRC_DEBUG__ -Werror"],
 			       [debug="-U__LRC_DEBUG__"])
 AC_SUBST(debug)
 

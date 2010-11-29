@@ -18,42 +18,15 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#define _GNU_SOURCE
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <limits.h>
-#include <string.h>
-#include <getopt.h>
-#include <stdarg.h>
-#include <sys/poll.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <signal.h>
-#include <time.h>
-
 #include "util.h"
 #include "proto.h"
+#include "child.h"
 #include "maps.h"
 
 static const char my_name[] = "randomcrash";
 static const char my_ver[] = VERSION;
 
 static char lrc_path[PATH_MAX];
-
-#ifdef __LRC_DEBUG__
-
-#include "../src/backtrace.c"
-
-void sigabrt_dumper(int sig)
-{
-	int i;
-
-	info("signal %d received\n", sig);
-	lrc_dump_trace(2);
-}
-#endif
 
 static const struct option options[] = {
 	{ "help",	0, 0, 'h' },
@@ -100,20 +73,6 @@ unsigned int verbosity = DBG_MASK;
 int inbound_fd;
 int outbound_fd;
 
-struct child {
-	pid_t		pid, ppid;
-	int		fd;
-	int		remote_fd;
-	int		state;
-};
-
-enum {
-	CS_NEW = 0,	/* created */
-	CS_RUNNING,	/* initialized */
-	CS_EXITING,	/* about to exit */
-	CS_DONE,
-};
-
 static struct child **children;	/* children array */
 static int nchildren;		/* array size */
 /*
@@ -144,9 +103,9 @@ struct child *child_new(pid_t pid, pid_t ppid)
 	int fdsv[2], i;
 
 	if (nchildren == CHILDREN_MAX) {
-		trace(0, "too many child processes\n");
+		error("too many child processes\n");
 		/* XXX */
-		return;
+		return NULL;
 	}
 
 	/*fprintf(stderr, "### NULL: %d, 0x400000: %d\n",
@@ -233,7 +192,7 @@ int children_wait(pid_t pid)
 			if (child->pid == pid)
 				mret = WEXITSTATUS(ret);
 			trace(DBG_CHILD, "child %d exited with %d code\n",
-			      child->pid, mret);
+			      child->pid, WEXITSTATUS(ret));
 			child_remove_by_idx(i);
 			child_free(child);
 
@@ -244,15 +203,15 @@ int children_wait(pid_t pid)
 	return mret;
 }
 
-void children_list(void)
+static void children_list(void)
 {
 	int i;
 	return;
-	trace(1, "nchildren=%d\n", nchildren);
+	trace(DBG_CHILD, "nchildren=%d\n", nchildren);
 	for (i = 0; i < nchildren; i++)
-		trace(1, "[child %d: state %d]\n",
+		trace(DBG_CHILD, "[child %d: state %d]\n",
 		      children[i]->pid, children[i]->state);
-	trace(1, "\n");
+	trace(DBG_CHILD, "\n");
 }
 
 static int msg_handler_handshake(struct lrc_message *m, int fd)
@@ -421,7 +380,7 @@ static handlerfn msg_handlers[MT_NR_TOTAL] = {
 };
 
 /* main loop */
-int child_started(pid_t pid)
+static int child_started(pid_t pid)
 {
 	int ret;
 	struct lrc_message *m;
@@ -447,8 +406,6 @@ int child_started(pid_t pid)
 				}
 
 				if (fds[i].revents & POLLIN) {
-					struct child *child;
-
 					m = lrc_message_recv(fds[i].fd);
 					(msg_handlers[m->type])(m, fds[i].fd);
 				}
@@ -474,10 +431,9 @@ int child_started(pid_t pid)
 	return ret;
 }
 
-int spawn(const char *cmd, char *const argv[])
+static int spawn(const char *cmd, char *const argv[])
 {
 	pid_t pid;
-	int i = 0;
 	int ret;
 
 	pid = fork();
