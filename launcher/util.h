@@ -18,6 +18,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <assert.h>
+#include <errno.h>
 
 #ifdef __LRC_DEBUG__
 #define DEVELOPER_MODE
@@ -84,6 +86,15 @@ void sigabrt_dumper(int sig);
 void *xmalloc(size_t len);
 void *xrealloc(void *ptr, size_t len);
 char *xstrdup(const char *str);
+
+#define xfree(x)						\
+	do {							\
+		void **__x = (void **)&(x);			\
+		if (*__x) {					\
+			free(*__x);				\
+			*__x = NULL;				\
+		}						\
+	} while (0);
 int xpoll(struct pollfd *fds, nfds_t nfds, int timeout);
 char *append_string(char *string, char *data);
 char *append_strings(char *string, int n, ...);

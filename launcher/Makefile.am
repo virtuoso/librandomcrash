@@ -11,6 +11,7 @@ randomcrash_SOURCES = \
 	util.c        \
 	maps.c	      \
 	bus.c         \
+	child.c	      \
 	backtrace.c
 
 randomcrash_CPPFLAGS = -DPKG_PREFIX=\"$(prefix)\" $(debug) -DLRC_SRC_BASE_DIR=\"$(abs_top_builddir)\" -I../common

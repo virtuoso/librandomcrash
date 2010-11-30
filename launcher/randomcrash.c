@@ -73,145 +73,41 @@ unsigned int verbosity = DBG_MASK;
 int inbound_fd;
 int outbound_fd;
 
-static struct child **children;	/* children array */
-static int nchildren;		/* array size */
-/*
- * maximum for the nchildren; since children can do all sorts
- * of setuid things, RLIMIT_NPROC is not really applicable here
- */
-#define CHILDREN_MAX INT_MAX
+struct runqueue runners, waiters;
 
 static struct pollfd *fds;	/* main loop descriptors */
 
-static void children2fds(void)
+static void runners2fds(void)
 {
 	int i;
 
-	fds = realloc(fds, sizeof(*fds) * (nchildren + 1));
+	fds = realloc(fds, sizeof(*fds) * (runners.size + 1));
 	fds[0].fd = inbound_fd;
 	fds[0].events = POLLIN;
 
-	for (i = 0; i < nchildren; i++) {
-		fds[i + 1].fd = children[i]->fd;
+	for (i = 0; i < runners.size; i++) {
+		fds[i + 1].fd = runners.array[i]->fd;
 		fds[i + 1].events = POLLIN | POLLHUP;
 	}
 }
 
-struct child *child_new(pid_t pid, pid_t ppid)
+void children_wait(void)
 {
-	struct child *child;
-	int fdsv[2], i;
+	int i, ret;
 
-	if (nchildren == CHILDREN_MAX) {
-		error("too many child processes\n");
-		/* XXX */
-		return NULL;
-	}
+	for (i = 0; i < runners.size; i++)
+		if (runners.array[i]->pid == waitpid(runners.array[i]->pid,
+						     &ret, WNOHANG)) {
+			struct child *child = runners.array[i];
 
-	/*fprintf(stderr, "### NULL: %d, 0x400000: %d\n",
-		validate_addr(pid, 0, 0),
-		validate_addr(pid, 0x400000, VA_OPT_READ | VA_OPT_EXEC));
-	maps_save(pid, VA_OPT_OURS);*/
-
-	child = xmalloc(sizeof(*child));
-	child->pid = pid;
-	child->ppid = ppid;
-
-	i = socketpair(AF_UNIX, SOCK_STREAM, 0, fdsv);
-	if (i) {
-		error("Failed to create a pipe\n");
-		exit(EXIT_FAILURE);
-	}
-
-	child->fd = fdsv[0];
-	child->remote_fd = fdsv[1];
-	child->state = CS_NEW;
-
-	children = realloc(children, sizeof(struct child *) * ++nchildren);
-	children[nchildren - 1] = child;
-
-	children2fds();
-
-	return child;
-}
-
-int child_find_idx_by_pid(pid_t pid)
-{
-	int i;
-
-	for (i = 0; i < nchildren; i++) {
-		if (children[i]->pid == pid)
-			return i;
-	}
-
-	return -1;
-}
-
-struct child *child_find_by_pid(pid_t pid)
-{
-	int idx = child_find_idx_by_pid(pid);
-
-	return idx >= 0 ? children[idx] : NULL;
-}
-
-void child_remove_by_idx(int idx)
-{
-	struct child **new_array;
-
-	new_array = xmalloc((nchildren - 1) * sizeof(struct child *));
-	memcpy(new_array, children, idx * sizeof(struct child *));
-	memcpy(new_array + idx, children + idx + 1,
-	       (nchildren - idx - 1) * sizeof(struct child *));
-
-	free(children);
-	children = new_array;
-	nchildren--;
-}
-
-void child_free(struct child *child)
-{
-	if (!child) /* XXX: report */
-		return;
-
-	if (child->state != CS_EXITING)
-		trace(DBG_CHILD, "child %d is in the wrong state %d\n",
-		      child->pid, child->state);
-	close(child->fd);
-	close(child->remote_fd);
-	free(child);
-}
-
-int children_wait(pid_t pid)
-{
-	int i, ret, mret = 0;
-
-	for (i = 0; i < nchildren; i++)
-		if (children[i]->pid == waitpid(children[i]->pid, &ret, WNOHANG)) {
-			struct child *child = children[i];
-
-			if (child->pid == pid)
-				mret = WEXITSTATUS(ret);
+			child->exit_code = WEXITSTATUS(ret);
 			trace(DBG_CHILD, "child %d exited with %d code\n",
-			      child->pid, WEXITSTATUS(ret));
-			child_remove_by_idx(i);
-			child_free(child);
+			      child->pid, child->exit_code);
+			child_moveon_by_idx(i);
 
-			if (i < nchildren)
+			if (i < runners.size)
 				continue;
 		}
-
-	return mret;
-}
-
-static void children_list(void)
-{
-	int i;
-	return;
-	trace(DBG_CHILD, "nchildren=%d\n", nchildren);
-	for (i = 0; i < nchildren; i++)
-		trace(DBG_CHILD, "[child %d: state %d]\n",
-		      children[i]->pid, children[i]->state);
-	trace(DBG_CHILD, "\n");
 }
 
 static int msg_handler_handshake(struct lrc_message *m, int fd)
@@ -224,14 +120,14 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 	pid_t dest_pid = m->pid;
 	char buf[CMSG_SPACE(sizeof(int))];
 
-	child = child_find_by_pid(m->pid);
+	child = child_find_by_pid(&runners, m->pid);
 	if (child)
 		trace(0, "%d already exists\n", m->pid);
 	else
 		child = child_new(m->pid, 0);
 
 	trace(DBG_PROTO, ">>> %d\n", m->pid);
-	free(m);
+	xfree(m);
 
 	m = xmalloc(sizeof(*m) + sizeof(int) * 2);
 
@@ -245,7 +141,7 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 
 	m->payload.response.code = 1; /* XXX */
 	lrc_message_send(fd, m);
-	free(m);
+	xfree(m);
 
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_control = buf;
@@ -261,7 +157,7 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 	*(int *)CMSG_DATA(cmsg) = vec[1];
 	ret = sendmsg(fd, &msg, 0);
 	trace(DBG_PROTO, "### sendmsg: %d: %m\n", ret);
-	children2fds();
+	runners2fds();
 
 	return 0;
 }
@@ -276,10 +172,10 @@ static int msg_handler_requestfd(struct lrc_message *m, int fd)
 	pid_t dest_pid = m->pid;
 	char buf[CMSG_SPACE(sizeof(int))];
 
-	child = child_find_by_pid(m->pid);
+	child = child_find_by_pid(&runners, m->pid);
 
 	trace(DBG_PROTO, ">>> %d\n", m->pid);
-	free(m);
+	xfree(m);
 
 	m = xmalloc(sizeof(*m) + sizeof(int) * 2);
 
@@ -293,7 +189,7 @@ static int msg_handler_requestfd(struct lrc_message *m, int fd)
 
 	m->payload.response.code = 1; /* XXX */
 	lrc_message_send(fd, m);
-	free(m);
+	xfree(m);
 
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_control = buf;
@@ -320,14 +216,16 @@ static int msg_handler_fork(struct lrc_message *m, int fd)
 	trace(DBG_CHILD, ">>> %d FORKED %d\n",
 	      m->pid, m->payload.fork.child);
 
-	child = child_find_by_pid(m->payload.fork.child);
+	child = child_find_by_pid(&runners, m->payload.fork.child);
 	if (child)
 		trace(DBG_CHILD, "%d already exists\n",
 		      m->payload.fork.child);
-	else
+	else {
 		child = child_new(m->payload.fork.child, 0);
+		runners2fds();
+	}
 
-	free(m);
+	xfree(m);
 
 	return 0;
 }
@@ -341,7 +239,7 @@ static int msg_handler_logmsg(struct lrc_message *m, int fd)
 	    m->payload.logmsg.level,
 	    tm.tm_hour, tm.tm_min, tm.tm_sec, m->timestamp.tv_usec,
 	    m->payload.logmsg.message);
-	free(m);
+	xfree(m);
 	return 0;
 }
 
@@ -353,12 +251,12 @@ static int msg_handler_exit(struct lrc_message *m, int fd)
 	trace(DBG_CHILD, "child %d is exiting with %d code\n",
 	      m->pid, m->payload.exit.code);
 
-	i = child_find_idx_by_pid(m->pid);
-	child = children[i];
+	i = child_find_idx_by_pid(&runners, m->pid);
+	child = runners.array[i];
+	child->exit_code = m->payload.exit.code;
 
-	child_remove_by_idx(i);
-	child_free(child);
-	free(m);
+	child_moveon_by_idx(i);
+	xfree(m);
 
 	return 0;
 }
@@ -380,28 +278,25 @@ static handlerfn msg_handlers[MT_NR_TOTAL] = {
 };
 
 /* main loop */
-static int child_started(pid_t pid)
+static void main_loop(void)
 {
 	int ret;
 	struct lrc_message *m;
 
-	trace(DBG_BASIC, "--- MAIN PID %d ---\n", pid);
 	for (;;) {
-		ret = xpoll(fds, nchildren + 1, !nchildren ? -1 : 0);
+		ret = xpoll(fds, runners.size + 1, !runners.size ? -1 : 0);
 		if (ret > 0) {
 			int i;
-			for (i = 0; i < nchildren + 1 && ret; i++) {
+			for (i = 0; i < runners.size + 1 && ret; i++) {
 				if (fds[i].revents & (POLLIN|POLLHUP|POLLNVAL))
 					ret--;
 
 				if (fds[i].revents & POLLNVAL) {
-					struct child *child = children[i - 1];
 					trace(DBG_PROTO, "ERROR: fd %d is closed\n",
 					      fds[i].fd);
 
-					child_remove_by_idx(i - 1);
-					child_free(child);
-					children2fds();
+					child_moveon_by_idx(i - 1);
+					runners2fds();
 					continue;
 				}
 
@@ -411,27 +306,24 @@ static int child_started(pid_t pid)
 				}
 
 				if ((fds[i].revents & POLLHUP) && i > 0) {
-					struct child *child = children[i - 1];
+					struct child *child = runners.array[i - 1];
 
 					trace(DBG_CHILD, "child %d hanged up\n",
 					      child->pid);
-					child_remove_by_idx(i - 1);
-					child_free(child);
+					child_moveon_by_idx(i - 1);
 				}
 			}
 		}
 
-		ret = children_wait(pid);
+		children_wait();
 
-		children_list();
-		if (!nchildren)
+		/*runqueue_list(&runners);*/
+		if (!runners.size)
 			break;
 	}
-
-	return ret;
 }
 
-static int spawn(const char *cmd, char *const argv[])
+static pid_t spawn(const char *cmd, char *const argv[])
 {
 	pid_t pid;
 	int ret;
@@ -448,21 +340,23 @@ static int spawn(const char *cmd, char *const argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	return child_started(pid);
+	return pid;
 }
 
 int main(int argc, char *const argv[])
 {
-	int loptidx, c, i;
-	char **new_argv;
-	char *executable;
+	unsigned long int skip_calls = 0;
 	char *lrc_opts = NULL;
 	char ipc_fdin[BUFSIZ];
-	int no_crash = 0;
 	char *logdir = NULL;
-	unsigned long int skip_calls = 0;
-	int svec[2];
+	struct child *ours;
+	int loptidx, c, i;
+	char *executable;
+	int no_crash = 0;
 	char buf[BUFSIZ];
+	char **new_argv;
+	int svec[2];
+	pid_t pid;
 
 #ifdef DEVELOPER_MODE
 	signal(SIGABRT, sigabrt_dumper);
@@ -547,10 +441,16 @@ int main(int argc, char *const argv[])
 
 	setenv(LRC_CONFIG_ENV, lrc_opts ? lrc_opts : "", 1);
 
-	children2fds();
+	runners2fds();
 
-	/* perhaps it makes sense to fork and handle the exit codes */
-	i = spawn(executable, new_argv);
+	pid = spawn(executable, new_argv);
+	main_loop();
+
+	ours = child_find_by_pid(&waiters, pid);
+	i = ours->exit_code;
+
+	runqueue_clean(&runners);
+	runqueue_clean(&waiters);
 
 	return i;
 }

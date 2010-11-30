@@ -1,11 +1,4 @@
-#define _GNU_SOURCE
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
-#include <sys/poll.h>
-#include <errno.h>
-#include <assert.h>
+#include "util.h"
 
 void *xmalloc(size_t len)
 {
