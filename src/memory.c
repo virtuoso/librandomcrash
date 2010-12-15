@@ -24,13 +24,15 @@
 
 #include "override.h"
 #include "log.h"
+#include "smalloc.h"
 
 /* a very simple allocation pool */
 static void *mem_base;	/* base of the pool */
 static void *mem_free;	/* first free address within the pool */
 
-static int lrc_pages = 20; /* tunable? */
+static int lrc_pages = 200; /* tunable? */
 static size_t memsz;
+static smalloc_t *s;
 
 void lrc_initmem(void)
 {
@@ -42,17 +44,19 @@ void lrc_initmem(void)
 
 	debug("reserved %d bytes of memory for LRC\n", memsz);
 	mem_free = mem_base;
+	s = smalloc_init(mem_base, memsz, NULL);
 }
 
-size_t lrc_get_free_mem(void)
+/*size_t lrc_get_free_mem(void)
 {
 	return memsz - ((unsigned long)mem_free - (unsigned long)mem_base);
-}
+	}*/
 
 void *lrc_alloc(size_t size)
 {
 	void *ptr;
 
+	return smalloc(s, size);
 	/* FIXME: this is absolutely thread-unsafe, but I'm just prototyping */
 	if (lrc_get_free_mem() < size)
 		return NULL;
@@ -63,3 +67,7 @@ void *lrc_alloc(size_t size)
 	return ptr;
 }
 
+void lrc_free(void *ptr)
+{
+	sfree(s, ptr);
+}

@@ -110,6 +110,7 @@ void children_wait(void)
 		}
 }
 
+#include <sys/time.h>
 static int msg_handler_handshake(struct lrc_message *m, int fd)
 {
 	struct child *child;
@@ -117,37 +118,40 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 	struct msghdr msg = { 0 };
 	struct cmsghdr *cmsg;
 	struct iovec iov;
-	pid_t dest_pid = m->pid;
 	char buf[CMSG_SPACE(sizeof(int))];
 
 	child = child_find_by_pid(&runners, m->pid);
 	if (child)
 		trace(0, "%d already exists\n", m->pid);
 	else
-		child = child_new(m->pid, 0);
+		child = child_new(m->pid, m->payload.handshake.ppid);
 
 	trace(DBG_PROTO, ">>> %d\n", m->pid);
 	xfree(m);
 
-	m = xmalloc(sizeof(*m) + sizeof(int) * 2);
+	m = xmalloc(sizeof(*m));
 
 	lrc_message_init(m, MT_RESPONSE);
-	m->length = sizeof(int) * 2;
 	vec[0] = child->fd;
 	vec[1] = child->remote_fd;
 	trace(0, "%d, %d\n", vec[0], vec[1]);
 	memcpy(&m->payload.response.fds, vec, sizeof(vec));
 	m->payload.response.code = RESP_OK;
+	m->payload.response.recipient = child->pid;
 
+	gettimeofday(&m->timestamp, NULL);
+
+#if 0
 	m->payload.response.code = 1; /* XXX */
 	lrc_message_send(fd, m);
 	xfree(m);
+#endif
 
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_control = buf;
 	msg.msg_controllen = CMSG_LEN(sizeof(int));
-	iov.iov_base = &dest_pid;
-	iov.iov_len = sizeof(dest_pid);
+	iov.iov_base = m;
+	iov.iov_len = sizeof(*m);
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 	cmsg = CMSG_FIRSTHDR(&msg);
@@ -157,6 +161,9 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 	*(int *)CMSG_DATA(cmsg) = vec[1];
 	ret = sendmsg(fd, &msg, 0);
 	trace(DBG_PROTO, "### sendmsg: %d: %m\n", ret);
+	xfree(m);
+	//close(vec[1]);
+
 	runners2fds();
 
 	return 0;
@@ -172,6 +179,8 @@ static int msg_handler_requestfd(struct lrc_message *m, int fd)
 	pid_t dest_pid = m->pid;
 	char buf[CMSG_SPACE(sizeof(int))];
 
+	abort();
+	
 	child = child_find_by_pid(&runners, m->pid);
 
 	trace(DBG_PROTO, ">>> %d\n", m->pid);
@@ -203,7 +212,7 @@ static int msg_handler_requestfd(struct lrc_message *m, int fd)
 	cmsg->cmsg_type = SCM_RIGHTS;
 	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
 	*(int *)CMSG_DATA(cmsg) = vec[1];
-	ret = sendmsg(fd, &msg, 0);
+	ret = sendmsg(fd, &msg, MSG_OOB);
 	trace(DBG_PROTO, "### sendmsg: %d: %m\n", ret);
 
 	return 0;
@@ -221,7 +230,7 @@ static int msg_handler_fork(struct lrc_message *m, int fd)
 		trace(DBG_CHILD, "%d already exists\n",
 		      m->payload.fork.child);
 	else {
-		child = child_new(m->payload.fork.child, 0);
+		child = child_new(m->payload.fork.child, m->pid);
 		runners2fds();
 	}
 
@@ -252,10 +261,20 @@ static int msg_handler_exit(struct lrc_message *m, int fd)
 	      m->pid, m->payload.exit.code);
 
 	i = child_find_idx_by_pid(&runners, m->pid);
-	child = runners.array[i];
-	child->exit_code = m->payload.exit.code;
+	if (i != -1)
+		child_moveon_by_idx(i);
 
-	child_moveon_by_idx(i);
+	i = child_find_idx_by_pid(&waiters, m->pid);
+	if (i == -1 || i >= waiters.size) {
+		error("can't find %d on either queue", m->pid);
+		goto out;
+	}
+
+	child = waiters.array[i];
+	child->exit_code = m->payload.exit.code;
+	runners2fds();
+
+out:
 	xfree(m);
 
 	return 0;
@@ -300,10 +319,8 @@ static void main_loop(void)
 					continue;
 				}
 
-				if (fds[i].revents & POLLIN) {
+				if (fds[i].revents & POLLIN)
 					m = lrc_message_recv(fds[i].fd);
-					(msg_handlers[m->type])(m, fds[i].fd);
-				}
 
 				if ((fds[i].revents & POLLHUP) && i > 0) {
 					struct child *child = runners.array[i - 1];
@@ -311,6 +328,11 @@ static void main_loop(void)
 					trace(DBG_CHILD, "child %d hanged up\n",
 					      child->pid);
 					child_moveon_by_idx(i - 1);
+				}
+
+				if (fds[i].revents & POLLIN) {
+					//m = lrc_message_recv(fds[i].fd);
+					(msg_handlers[m->type])(m, fds[i].fd);
 				}
 			}
 		}

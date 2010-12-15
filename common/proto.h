@@ -25,11 +25,13 @@ struct lrc_message {
 	size_t		length; /* payload length */
 	union {
 		struct {
+			pid_t		ppid;
 			unsigned int	flags;
 		} handshake;
 		struct {
 			int	code;
 			int	fds[2];
+			pid_t	recipient;
 		} response;
 		/* request fd is too dumb */
 		struct {

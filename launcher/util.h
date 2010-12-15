@@ -75,7 +75,7 @@ extern unsigned int verbosity;
 	color_output(__CYAN, stdout, INFO, f, ## args)
 
 #define error(f, args ...)				\
-	color_output(__CYAN, stderr, ERROR, f, ## args)
+	color_output(__RED, stderr, ERROR, f, ## args)
 
 #ifdef DEVELOPER_MODE
 void sigabrt_dumper(int sig);
@@ -95,6 +95,7 @@ char *xstrdup(const char *str);
 			*__x = NULL;				\
 		}						\
 	} while (0);
+
 int xpoll(struct pollfd *fds, nfds_t nfds, int timeout);
 char *append_string(char *string, char *data);
 char *append_strings(char *string, int n, ...);

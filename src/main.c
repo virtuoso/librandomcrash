@@ -96,7 +96,7 @@ static bool lrc_try_enter(void)
 
 static void lrc_leave(void)
 {
-	if (!lrc_leave)
+	if (!lrc_depth)
 		panic("inconsistent lrc depth");
 
 	lrc_depth--;
@@ -130,44 +130,52 @@ void lrc_initbus(void)
 
 	lrc_bus.fd_in = lrc_bus.fd_out = lrc_conf_long(CONF_FD);
 
+retry:
 	lrc_message_init(&m, MT_HANDSHAKE);
+	m.payload.handshake.ppid = getppid();
 	m.payload.handshake.flags = 0xabbadead; /* XXX */
 	lrc_message_send(lrc_bus.fd_out, &m);
 
-retry:
-	r = lrc_message_recv(lrc_bus.fd_in);
-	if (r->type == MT_RESPONSE) {
-		int fd;
+	lrc_memset(&msg, 0, sizeof(msg));
+	msg.msg_control = buf;
+	msg.msg_controllen = sizeof(buf);
+	iov.iov_base = &m;
+	iov.iov_len = sizeof(m);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	do {
+		len = recvmsg(lrc_bus.fd_in, &msg, 0);
+	} while (len == -1 && errno == EINTR);
 
+	if (len == -1) {
+		log_print(LL_OERR, "recvmsg failed: %m\n");
+		panic("Can't receive ipc socket\n");
+	}
+
+	r = &m;
+	//r = lrc_message_recv(lrc_bus.fd_in);
+	if (r->type == MT_RESPONSE) {
+		int fd = *(int *)CMSG_DATA(cmsg);
+
+		if (r->payload.response.recipient != lrc_gettid()) {
+			log_print(LL_OINFO, "### wrong rcpt %d\n",
+				  r->payload.response.recipient);
+			goto retry;
+		}
 		log_print(LL_OINFO, "connected to launcher, fds: %d<>%d\n",
 			  r->payload.response.fds[0], r->payload.response.fds[1]);
-		lrc_memset(&msg, 0, sizeof(msg));
-		msg.msg_control = buf;
-		msg.msg_controllen = sizeof(buf);
-		iov.iov_base = &dest_pid;
-		iov.iov_len = sizeof(dest_pid);
-		msg.msg_iov = &iov;
-		msg.msg_iovlen = 1;
-
-		do {
-			len = recvmsg(lrc_bus.fd_in, &msg, 0);
-		} while (len == -1 && errno == EINTR);
-
-		if (len == -1) {
-			log_print(LL_OERR, "recvmsg failed: %m\n");
-			panic("Can't receive ipc socket\n");
-		}
+//		lrc_free(r);
 
 		cmsg = CMSG_FIRSTHDR(&msg);
 		fd = *(int *)CMSG_DATA(cmsg);
-		log_print(LL_OINFO, "received fd %d for %d\n", fd, dest_pid);
+		/*log_print(LL_OINFO, "received fd %d for %d\n", fd, dest_pid);
 		if (dest_pid != lrc_gettid()) {
 			log_print(LL_OINFO, "### %d != %d\n", dest_pid,
 				  lrc_gettid());
 			lrc_message_init(&m, MT_REQUESTFD);
 			lrc_message_send(lrc_bus.fd_out, &m);
 			goto retry;
-		}
+			}*/
 
 		lrc_bus.fd_in = lrc_bus.fd_out = fd;
 		lrc_bus.connected = 1;

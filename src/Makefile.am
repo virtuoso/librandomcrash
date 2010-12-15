@@ -15,6 +15,7 @@ librandomcrash_la_SOURCES =	\
 	backtrace.c		\
 	log.c			\
 	memory.c		\
+	smalloc.c		\
 	conf.c			\
 	crash.c			\
 	bus.c			\
@@ -34,6 +35,7 @@ lrc_test_SOURCES =		\
 	backtrace.c		\
 	log.c			\
 	memory.c		\
+	smalloc.c		\
 	conf.c			\
 	crash.c			\
 	bus.c			\

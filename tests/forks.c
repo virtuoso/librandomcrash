@@ -27,6 +27,7 @@ int main()
 		}
 	}
 
+	//sleep(1);
 	for (i = 0; i < NFORKS; i++) {
 		kill(pids[i], SIGINT);
 		while (pids[i] != waitpid(pids[i], &ret, 0))
