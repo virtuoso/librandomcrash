@@ -117,7 +117,7 @@ struct lrc_bus lrc_bus;
 
 void lrc_initbus(void)
 {
-	struct lrc_message m, *r;
+	struct lrc_message m;
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
 	struct iovec iov;
@@ -152,30 +152,19 @@ retry:
 		panic("Can't receive ipc socket\n");
 	}
 
-	r = &m;
-	//r = lrc_message_recv(lrc_bus.fd_in);
-	if (r->type == MT_RESPONSE) {
+	if (m.type == MT_RESPONSE) {
 		int fd = *(int *)CMSG_DATA(cmsg);
 
-		if (r->payload.response.recipient != lrc_gettid()) {
+		if (m.payload.response.recipient != lrc_gettid()) {
 			log_print(LL_OINFO, "### wrong rcpt %d\n",
-				  r->payload.response.recipient);
+				  m.payload.response.recipient);
 			goto retry;
 		}
 		log_print(LL_OINFO, "connected to launcher, fds: %d<>%d\n",
-			  r->payload.response.fds[0], r->payload.response.fds[1]);
-//		lrc_free(r);
+			  m.payload.response.fds[0], m.payload.response.fds[1]);
 
 		cmsg = CMSG_FIRSTHDR(&msg);
 		fd = *(int *)CMSG_DATA(cmsg);
-		/*log_print(LL_OINFO, "received fd %d for %d\n", fd, dest_pid);
-		if (dest_pid != lrc_gettid()) {
-			log_print(LL_OINFO, "### %d != %d\n", dest_pid,
-				  lrc_gettid());
-			lrc_message_init(&m, MT_REQUESTFD);
-			lrc_message_send(lrc_bus.fd_out, &m);
-			goto retry;
-			}*/
 
 		lrc_bus.fd_in = lrc_bus.fd_out = fd;
 		lrc_bus.connected = 1;
