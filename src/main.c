@@ -179,6 +179,8 @@ retry:
 
 		lrc_bus.fd_in = lrc_bus.fd_out = fd;
 		lrc_bus.connected = 1;
+		lrc_message_init(&m, MT_IMGOOD);
+		lrc_message_send(lrc_bus.fd_out, &m);
 	}
 }
 

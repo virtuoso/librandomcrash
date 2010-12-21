@@ -5,7 +5,7 @@ enum {
 	MT_NOOP = 0,
 	MT_HANDSHAKE,
 	MT_RESPONSE,
-	MT_REQUESTFD,
+	MT_IMGOOD,
 	MT_FORK,
 	MT_LOGMSG,
 	MT_EXIT,
@@ -33,7 +33,7 @@ struct lrc_message {
 			int	fds[2];
 			pid_t	recipient;
 		} response;
-		/* request fd is too dumb */
+		/* imgood fd is too dumb */
 		struct {
 			pid_t	child;
 		} fork;

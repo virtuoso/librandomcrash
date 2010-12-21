@@ -169,51 +169,14 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 	return 0;
 }
 
-static int msg_handler_requestfd(struct lrc_message *m, int fd)
+static int msg_handler_imgood(struct lrc_message *m, int fd)
 {
 	struct child *child;
-	int vec[2], ret;
-	struct msghdr msg = { 0 };
-	struct cmsghdr *cmsg;
-	struct iovec iov;
-	pid_t dest_pid = m->pid;
-	char buf[CMSG_SPACE(sizeof(int))];
 
-	abort();
-	
 	child = child_find_by_pid(&runners, m->pid);
 
-	trace(DBG_PROTO, ">>> %d\n", m->pid);
-	xfree(m);
-
-	m = xmalloc(sizeof(*m) + sizeof(int) * 2);
-
-	lrc_message_init(m, MT_RESPONSE);
-	m->length = sizeof(int) * 2;
-	vec[0] = child->fd;
-	vec[1] = child->remote_fd;
-	trace(DBG_CHILD, "%d, %d\n", vec[0], vec[1]);
-	memcpy(&m->payload.response.fds, vec, sizeof(vec));
-	m->payload.response.code = RESP_OK;
-
-	m->payload.response.code = 1; /* XXX */
-	lrc_message_send(fd, m);
-	xfree(m);
-
-	memset(&msg, 0, sizeof(msg));
-	msg.msg_control = buf;
-	msg.msg_controllen = CMSG_LEN(sizeof(int));
-	iov.iov_base = &dest_pid;
-	iov.iov_len = sizeof(dest_pid);
-	msg.msg_iov = &iov;
-	msg.msg_iovlen = 1;
-	cmsg = CMSG_FIRSTHDR(&msg);
-	cmsg->cmsg_level = SOL_SOCKET;
-	cmsg->cmsg_type = SCM_RIGHTS;
-	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-	*(int *)CMSG_DATA(cmsg) = vec[1];
-	ret = sendmsg(fd, &msg, MSG_OOB);
-	trace(DBG_PROTO, "### sendmsg: %d: %m\n", ret);
+	trace(DBG_PROTO, "%d is good\n", m->pid);
+	close(child->remote_fd);
 
 	return 0;
 }
@@ -289,7 +252,7 @@ static int msg_handler_bug(struct lrc_message *m, int fd)
 typedef int (*handlerfn)(struct lrc_message *, int);
 static handlerfn msg_handlers[MT_NR_TOTAL] = {
 	[MT_HANDSHAKE]	= msg_handler_handshake,
-	[MT_REQUESTFD]	= msg_handler_requestfd,
+	[MT_IMGOOD]	= msg_handler_imgood,
 	[MT_FORK]	= msg_handler_fork,
 	[MT_LOGMSG]	= msg_handler_logmsg,
 	[MT_EXIT]	= msg_handler_exit,
