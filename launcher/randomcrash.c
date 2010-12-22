@@ -33,13 +33,14 @@ static const struct option options[] = {
 	{ "no-crash",	0, 0, 'n' },
 	{ "logdir",	1, 0, 'L' },
 	{ "skip-calls",	1, 0, 's' },
+	{ "verbosity",	1, 0, 'v' },
 #ifdef DEVELOPER_MODE
 	{ "local",	0, 0, 'l' },
 #endif
 	{ NULL,		0, 0, 0   },
 };
 
-static const char *optstr = "hnL:s:"
+static const char *optstr = "hnL:s:v:"
 #ifdef DEVELOPER_MODE
 	"l"
 #endif
@@ -50,6 +51,7 @@ static const char *optdesc[] = {
 	"don't apply nastiness, just watch",
 	"specify directory to be used for logging",
 	"number of calls to skip before starting to intercept",
+	"bitmask of the debug categories to be printed",
 #ifdef DEVELOPER_MODE
 	"run local build of the library instead",
 #endif
@@ -67,7 +69,7 @@ static void usage(void)
 			options[i].val, options[i].name, optdesc[i]);
 }
 
-unsigned int verbosity = DBG_MASK;
+unsigned int verbosity;
 
 /* IPC */
 static int main_fd;
@@ -364,6 +366,10 @@ int main(int argc, char *const argv[])
 
 			case 's':
 				skip_calls = strtoul(optarg, NULL, 0);
+				break;
+
+			case 'v':
+				verbosity = strtoul(optarg, NULL, 0);
 				break;
 
 #ifdef DEVELOPER_MODE
