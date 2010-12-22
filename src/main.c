@@ -115,6 +115,9 @@ extern struct handler *handlers[];
 
 struct lrc_bus lrc_bus;
 
+/*
+ * Initialize a communication channel between lrc and its launcher
+ */
 void lrc_initbus(void)
 {
 	struct lrc_message m;
@@ -173,12 +176,9 @@ retry:
 	}
 }
 
-void lrc_dobus(void)
-{
-	if (!lrc_bus.connected)
-		return;
-}
-
+/*
+ * Tell our launcher that we're exiting
+ */
 static void exit_notify(int status, void *data)
 {
 	struct lrc_message m;
@@ -209,6 +209,7 @@ int lrc_call_entry(struct override *o, void *ctxp)
 	debug("%s() entry, call nr: %lu\n", o->name, lrc_callno);
 
 	/* first, run the first enabled accounting handler for this call */
+	/* these should move to the launcher */
 	for (i = 0; acct_handlers[i]; i++)
 		if (!lrc_strcmp(acct_handlers[i]->fn_name, o->name) &&
 		    acct_handlers[i]->enabled &&
@@ -321,7 +322,7 @@ EXPORT void __dtor lrc_done(void)
 	for (i = 0; acct_handlers[i]; i++)
 		if (acct_handlers[i]->fini_func)
 			acct_handlers[i]->fini_func();
-	log_print(LL_OINFO, "STILL ALIVE\n");
+	debug("%s: STILL ALIVE\n", __func__);
 }
 
 #ifdef __YEAH_RIGHT__

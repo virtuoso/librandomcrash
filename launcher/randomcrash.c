@@ -110,11 +110,11 @@ void children_wait(void)
 		}
 }
 
-#include <sys/time.h>
+/* --- LRC message handlers --- */
 static int msg_handler_handshake(struct lrc_message *m, int fd)
 {
 	struct child *child;
-	int vec[2], ret;
+	int ret;
 	struct msghdr msg = { 0 };
 	struct cmsghdr *cmsg;
 	struct iovec iov;
@@ -122,7 +122,7 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 
 	child = child_find_by_pid(&runners, m->pid);
 	if (child)
-		trace(0, "%d already exists\n", m->pid);
+		trace(DBG_CHILD, "%d already exists\n", m->pid);
 	else
 		child = child_new(m->pid, m->payload.handshake.ppid);
 
@@ -131,25 +131,22 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 
 	m = xmalloc(sizeof(*m));
 
+	/* our response packet is sent with sendmsg() instead */
 	lrc_message_init(m, MT_RESPONSE);
-	vec[0] = child->fd;
-	vec[1] = child->remote_fd;
-	trace(0, "%d, %d\n", vec[0], vec[1]);
-	memcpy(&m->payload.response.fds, vec, sizeof(vec));
+
+	/* fd numbers are probably not needed */
+	m->payload.response.fds[0] = child->fd;
+	m->payload.response.fds[1] = child->remote_fd;
 	m->payload.response.code = RESP_OK;
 	m->payload.response.recipient = child->pid;
 
-	gettimeofday(&m->timestamp, NULL);
+	lrc_message_prepare(m);
 
-#if 0
-	m->payload.response.code = 1; /* XXX */
-	lrc_message_send(fd, m);
-	xfree(m);
-#endif
-
+	/* ugh */
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_control = buf;
 	msg.msg_controllen = CMSG_LEN(sizeof(int));
+	/* we include our message in the payload */
 	iov.iov_base = m;
 	iov.iov_len = sizeof(*m);
 	msg.msg_iov = &iov;
@@ -158,11 +155,12 @@ static int msg_handler_handshake(struct lrc_message *m, int fd)
 	cmsg->cmsg_level = SOL_SOCKET;
 	cmsg->cmsg_type = SCM_RIGHTS;
 	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-	*(int *)CMSG_DATA(cmsg) = vec[1];
+	*(int *)CMSG_DATA(cmsg) = child->remote_fd;
+
 	ret = sendmsg(fd, &msg, 0);
-	trace(DBG_PROTO, "### sendmsg: %d: %m\n", ret);
+	if (ret < 0)
+		trace(DBG_PROTO, "sendmsg: %d: %m\n", ret);
 	xfree(m);
-	//close(vec[1]);
 
 	runners2fds();
 

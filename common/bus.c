@@ -11,9 +11,14 @@ int lrc_message_init(struct lrc_message *m, int type)
 	return 0;
 }
 
-int lrc_message_send(int fd, struct lrc_message *m)
+void lrc_message_prepare(struct lrc_message *m)
 {
 	gettimeofday(&m->timestamp, NULL);
+}
+
+int lrc_message_send(int fd, struct lrc_message *m)
+{
+	lrc_message_prepare(m);
 	return lrc_write(fd, m, lrc_message_size(m));
 }
 
