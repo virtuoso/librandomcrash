@@ -70,8 +70,7 @@ static void usage(void)
 unsigned int verbosity = DBG_MASK;
 
 /* IPC */
-int inbound_fd;
-int outbound_fd;
+static int main_fd;
 
 struct runqueue runners, waiters;
 
@@ -82,7 +81,7 @@ static void runners2fds(void)
 	int i;
 
 	fds = realloc(fds, sizeof(*fds) * (runners.size + 1));
-	fds[0].fd = inbound_fd;
+	fds[0].fd = main_fd;
 	fds[0].events = POLLIN;
 
 	for (i = 0; i < runners.size; i++) {
@@ -91,7 +90,7 @@ static void runners2fds(void)
 	}
 }
 
-void children_wait(void)
+static void children_wait(void)
 {
 	int i, ret;
 
@@ -291,10 +290,8 @@ static void main_loop(void)
 					child_moveon_by_idx(i - 1);
 				}
 
-				if (fds[i].revents & POLLIN) {
-					//m = lrc_message_recv(fds[i].fd);
+				if (fds[i].revents & POLLIN)
 					(msg_handlers[m->type])(m, fds[i].fd);
-				}
 			}
 		}
 
@@ -405,10 +402,9 @@ int main(int argc, char *const argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	inbound_fd = svec[0];
-	outbound_fd = svec[1];
+	main_fd = svec[0];
 
-	snprintf(ipc_fdin, BUFSIZ, "fd=%d:", outbound_fd);
+	snprintf(ipc_fdin, BUFSIZ, "fd=%d:", svec[1]);
 	lrc_opts = append_string(lrc_opts, ipc_fdin);
 
 	if (no_crash)

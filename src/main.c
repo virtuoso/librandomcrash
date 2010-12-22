@@ -118,7 +118,7 @@ struct lrc_bus lrc_bus;
 /*
  * Initialize a communication channel between lrc and its launcher
  */
-void lrc_initbus(void)
+static void lrc_initbus(void)
 {
 	struct lrc_message m;
 	struct msghdr msg;

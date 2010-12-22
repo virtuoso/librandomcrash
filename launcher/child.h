@@ -54,7 +54,6 @@ int child_find_idx_by_pid(struct runqueue *rq, pid_t pid);
 struct child *child_find_by_pid(struct runqueue *rq, pid_t pid);
 void child_moveon_by_idx(int idx);
 void child_free(struct child *child);
-void children_wait(void);
 void runqueue_append(struct runqueue *rq, struct child *child);
 void runqueue_remove(struct runqueue *rq, int idx);
 void runqueue_clean(struct runqueue *rq);
