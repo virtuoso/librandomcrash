@@ -201,14 +201,18 @@ END {
     this_param = sprintf("%s %s", type_name, arg_name)
 
     if ($NF == "...") {
+	# va_list will be the last argument, don't append it
+	# to the array, but insert a va_copy() instead
 	type_name = "va_list"
 	arg_name = "ap"
 	fn_addargs = type_name " " arg_name ";"
-    }
+	tmp = "\tva_copy(args.ap, ap);\n"
+	fn_prologue = fn_prologue ? fn_prologue "\n" tmp : tmp
+    } else
+	fn_paramlist_call = fn_paramlist_call ?
+	    fn_paramlist_call ", " arg_name : arg_name
 
     fn_paramlist = fn_paramlist ? fn_paramlist ", " this_param : this_param
-    fn_paramlist_call = fn_paramlist_call ?
-	fn_paramlist_call ", " arg_name : arg_name
 
     args_struct = args_struct sprintf("\t%s\t%s;\n", type_name, arg_name)
 
