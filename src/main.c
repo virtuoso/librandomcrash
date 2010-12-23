@@ -115,7 +115,7 @@ void __ctor lrc_init(void);
 
 static unsigned long int lrc_callno = 0;
 
-int __lrc_call_entry(struct override *o, void *ctxp)
+int lrc_call_entry(struct override *o, void *ctxp)
 {
 	struct handler *queue[MAXQUEUE];
 	int i, qlast = 0, ret = 0;
@@ -166,7 +166,7 @@ out:
 	return ret;
 }
 
-void __lrc_call_exit(struct override *o, void *ctxp, void *retp)
+void lrc_call_exit(struct override *o, void *ctxp, void *retp)
 {
 	struct lrcpriv_callctx *callctx =
 		&((struct __lrc_callctx *)ctxp)->callctx;

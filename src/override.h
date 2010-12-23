@@ -65,8 +65,8 @@ struct __lrc_callctx {
 #define __noret __attribute__((noreturn))
 #define EXPORT __attribute__((visibility("default")))
 
-int __lrc_call_entry(struct override *o, void *ctxp);
-void __lrc_call_exit(struct override *o, void *ctxp, void *retp);
+int lrc_call_entry(struct override *o, void *ctxp);
+void lrc_call_exit(struct override *o, void *ctxp, void *retp);
 
 void lrc_going_to_crash(const char *site, const char *cond);
 

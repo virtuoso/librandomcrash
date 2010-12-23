@@ -55,9 +55,9 @@ function get_type_name(str)
 #          { NULL, AAA };
 # int __ret;
 #
-# if (!__lrc_call_entry(&__lrc_call_XXX, &args))
+# if (!lrc_call_entry(&__lrc_call_XXX, &args))
 #         __ret = ((__lrc_XXX_fn)__lrc_call_XXX.orig_func)(args.AAA);
-# __lrc_call_exit(&__lrc_call_XXX, &args, &__ret);
+# lrc_call_exit(&__lrc_call_XXX, &args, &__ret);
 # return __ret;
 # ---
 function mk_fn_body(__fn_name, __fn_typename, __fn_addargs, __fn_paramlist, \
@@ -82,9 +82,9 @@ function mk_fn_body(__fn_name, __fn_typename, __fn_addargs, __fn_paramlist, \
 	"%s"								\
 	"\tstruct __lrc_callctx_%s args =\n\t\t{ {}, %s };\n"		\
 	"%s\n%s"							\
-	"\tif (!__lrc_call_entry(&__lrc_call_%s, &args))\n"		\
+	"\tif (!lrc_call_entry(&__lrc_call_%s, &args))\n"		\
 	"\t\t%s((__lrc_%s_fn)__lrc_call_%s.orig_func)(%s);\n"		\
-	"\t__lrc_call_exit(&__lrc_call_%s, &args, %s);%s",		\
+	"\tlrc_call_exit(&__lrc_call_%s, &args, %s);%s",		\
 	__fn_addargs, __fn_name, __fn_paramlist, __ret0, __prologue,	\
 	__fn_name,							\
 	__ret1, __fn_name, __fn_name, __paramlist_args, __fn_name,	\

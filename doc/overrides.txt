@@ -37,10 +37,10 @@ struct __lrc_callctx_read {
 symbols.c will have the actual calls, each doing the following:
   * create an instance of a corresponding structure from symbols.h and
     fill it with its arguments;
-  * call __lrc_call_entry() to notify LRC that a certain call is made
+  * call lrc_call_entry() to notify LRC that a certain call is made
     from the application;
   * if the above returns zero, call the original library function;
-  * call __lrc_call_exit() to notify LRC that we are about to return
+  * call lrc_call_exit() to notify LRC that we are about to return
     execution flow to the application;
   * return.
 
