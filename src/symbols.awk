@@ -39,22 +39,21 @@ function mk_args_st_hdr(__fn_name)
     return sprintf("struct __lrc_callctx_%s {\n\tstruct lrcpriv_callctx callctx;\n", __fn_name)
 }
 
+# append what to where using delim as a delimiter if where is not empty
+# saves quite some ugliness
+function append(where, what, delim)
+{
+    return where ? where delim what : what
+}
+
 function get_type_name(str)
 {
     type_name = ""
 
     for (i = 1; i < NF; i++)
-	type_name = type_name ? type_name " " $i : $i
+	type_name = append(type_name, $i, " ")
 
     return type_name
-}
-
-function append(where, what, delim)
-{
-    if (!delim)
-	delim = ", "
-
-    return where ? where delim what : what
 }
 
 # generate function body
@@ -112,9 +111,7 @@ function flush_function()
 	return
 
     fn_struct = fn_struct sprintf("\t.nargs = %d,\n};\n", fn_nargs)
-    lrc_list = lrc_list ?
-	lrc_list sprintf("\t&__lrc_call_%s,\n", fn_name) :
-	sprintf("\t&__lrc_call_%s,\n", fn_name)
+    lrc_list = append(lrc_list, sprintf("\t&__lrc_call_%s,\n", fn_name))
 
     print fn_struct
 
@@ -202,7 +199,7 @@ END {
     }
 
     for (i = 2; i <= NF; i++)
-	fn_tail = fn_tail ? fn_tail " " $i : $i
+	fn_tail = append(fn_tail, $i, " ")
 
     next
 }
@@ -223,12 +220,11 @@ END {
 	arg_name = "ap"
 	fn_addargs = type_name " " arg_name ";"
 	tmp = "\tva_copy(args.ap, ap);\n"
-	fn_prologue = fn_prologue ? fn_prologue "\n" tmp : tmp
+	fn_prologue = append(fn_prologue, tmp, "\n")
     } else
-	fn_paramlist_call = fn_paramlist_call ?
-	    fn_paramlist_call ", " arg_name : arg_name
+	fn_paramlist_call = append(fn_paramlist_call, arg_name, ", ")
 
-    fn_paramlist = fn_paramlist ? fn_paramlist ", " this_param : this_param
+    fn_paramlist = append(fn_paramlist, this_param, ", ")
 
     args_struct = args_struct sprintf("\t%s\t%s;\n", type_name, arg_name)
 
