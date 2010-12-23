@@ -49,6 +49,14 @@ function get_type_name(str)
     return type_name
 }
 
+function append(where, what, delim)
+{
+    if (!delim)
+	delim = ", "
+
+    return where ? where delim what : what
+}
+
 # generate function body
 # ---
 # struct __lrc_callctx_XXX args =
@@ -61,7 +69,8 @@ function get_type_name(str)
 # return __ret;
 # ---
 function mk_fn_body(__fn_name, __fn_typename, __fn_addargs, __fn_paramlist, \
-		    __prologue, __paramlist_args, __ret0, __ret1, __ret2, __ret3)
+		    __prologue, __epilogue, __paramlist_args, __ret0, __ret1, \
+		    __ret2, __ret3)
 {
     if (__fn_typename == "void") {
 	__ret2 = "NULL"
@@ -84,11 +93,11 @@ function mk_fn_body(__fn_name, __fn_typename, __fn_addargs, __fn_paramlist, \
 	"%s\n%s"							\
 	"\tif (!lrc_call_entry(&__lrc_call_%s, &args))\n"		\
 	"\t\t%s((__lrc_%s_fn)__lrc_call_%s.orig_func)(%s);\n"		\
-	"\tlrc_call_exit(&__lrc_call_%s, &args, %s);%s",		\
+	"\tlrc_call_exit(&__lrc_call_%s, &args, %s);%s%s",		\
 	__fn_addargs, __fn_name, __fn_paramlist, __ret0, __prologue,	\
 	__fn_name,							\
 	__ret1, __fn_name, __fn_name, __paramlist_args, __fn_name,	\
-	__ret2, __ret3)
+	__ret2, __epilogue, __ret3)
 }
 
 # output everything to do with a call:
@@ -114,7 +123,8 @@ function flush_function()
 
     printf("typedef %s (*__lrc_%s_fn)(%s);\n", fn_typename, fn_name, fn_paramlist)
 
-    fn_body = mk_fn_body(fn_name, fn_typename, fn_addargs, fn_paramlist_call, fn_prologue)
+    fn_body = mk_fn_body(fn_name, fn_typename, fn_addargs, fn_paramlist_call, \
+			 fn_prologue, fn_epilogue)
 
     # use void for empty parameters list
     fn_paramlist = fn_paramlist ? fn_paramlist : "void"
@@ -151,6 +161,7 @@ function flush_function()
     fn_tail = ""
     fn_addargs = ""
     fn_prologue = ""
+    fn_epilogue = ""
 }
 
 BEGIN {
@@ -185,6 +196,11 @@ END {
 
 # additional modifiers to the function definition (nothrow(), etc)
 /^@@/ {
+    if ($2 == "noreturn") {
+	fn_epilogue = append(fn_epilogue, "\n\tfor (;;);", "\n")
+	next
+    }
+
     for (i = 2; i <= NF; i++)
 	fn_tail = fn_tail ? fn_tail " " $i : $i
 
