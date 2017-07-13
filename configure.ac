@@ -4,7 +4,7 @@ AC_INIT(librandomcrash, 0.0.0)
 AC_PREREQ(2.50)
 AC_CANONICAL_SYSTEM
 
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([subdir-objects])
 
 LT_MAJOR="0"
 LT_MINOR="0"
